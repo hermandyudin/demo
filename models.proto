@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package models;
+
+message ModelARequest {
+  string message = 1;
+}
+
+message ModelBRequest {
+  int32 value = 1;
+}
+
+message ModelAResponse {
+  string reply = 1;
+}
+
+message ModelBResponse {
+  int32 status = 1;
+}
+
+message Task {
+   string task_id = 1;
+   bytes request = 2;
+}
