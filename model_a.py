@@ -11,11 +11,11 @@ class ModelA(BaseModel):
         response_obj.reply = f"Processed message: {model_a_request.message}"
         return response_obj
 
-    def get_request_descriptor(self):
-        return models_pb2.ModelARequest.DESCRIPTOR
+    def get_request_format(self):
+        return models_pb2.ModelARequest()
 
-    def get_response_descriptor(self):
-        return models_pb2.ModelAResponse.DESCRIPTOR
+    def get_response_format(self):
+        return models_pb2.ModelAResponse()
 
 
 if __name__ == "__main__":

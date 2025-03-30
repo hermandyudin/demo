@@ -1,15 +1,15 @@
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from http.client import responses
 
 from fastapi import FastAPI, Request, Response
 import requests
-import json
 import atexit
 import socket
 from aio_pika import connect_robust, IncomingMessage
 import redis.asyncio as aioredis
-from google.protobuf.descriptor import Descriptor
+from google.protobuf.json_format import MessageToDict
+import json
 
 import models_pb2
 
@@ -28,11 +28,40 @@ def get_host_ip():
         return "127.0.0.1"
 
 
-def descriptor_to_dict(descriptor: Descriptor) -> Dict[str, Any]:
-    fields = {}
-    for field in descriptor.fields:
-        fields[field.name] = field.type
-    return fields
+def fill_defaults(proto_instance, dict_output):
+    for field in proto_instance.DESCRIPTOR.fields:
+        if field.name not in dict_output:
+            if field.label == field.LABEL_REPEATED:
+                # Handle repeated fields (arrays)
+                repeated_value = getattr(proto_instance, field.name)
+                if field.cpp_type == field.CPPTYPE_MESSAGE:
+                    # For repeated message fields, fill one default message
+                    # Create a new empty message and fill its defaults
+                    sub_message = repeated_value.add()  # Add one element
+                    dict_output[field.name] = [fill_defaults(sub_message, {})]  # Default-filled object
+                else:
+                    # For repeated non-message fields, add the default value
+                    dict_output[field.name] = [get_default_value(field)]
+            elif field.cpp_type == field.CPPTYPE_MESSAGE:
+                # Recursively process nested message fields
+                sub_message = getattr(proto_instance, field.name)
+                dict_output[field.name] = fill_defaults(sub_message, {}) if sub_message is not None else {}
+            else:
+                dict_output[field.name] = get_default_value(field)
+
+    return dict_output
+
+def get_default_value(field):
+    """Returns the default value for a given field type."""
+    if field.cpp_type == field.CPPTYPE_STRING:
+        return ""
+    elif field.cpp_type in (field.CPPTYPE_INT32, field.CPPTYPE_INT64):
+        return 0
+    elif field.cpp_type == field.CPPTYPE_BOOL:
+        return False
+    elif field.cpp_type in (field.CPPTYPE_FLOAT, field.CPPTYPE_DOUBLE):
+        return 0.0
+    return None
 
 
 class BaseModel(ABC):
@@ -150,12 +179,18 @@ class BaseModel(ABC):
             print(f"Stored result in Redis with key: {task.task_id}")
 
     async def get_schema(self):
-        request_descriptor = self.get_request_descriptor()
-        response_descriptor = self.get_response_descriptor()
+        request_format = self.get_request_format()
+        response_format = self.get_response_format()
+        request_descriptor = MessageToDict(request_format)
+        response_descriptor = MessageToDict(response_format)
+        filled_input = fill_defaults(request_format, request_descriptor)
+        filled_output = fill_defaults(response_format, response_descriptor)
+        json_input = json.dumps(filled_input, indent=2)
+        json_output = json.dumps(filled_output, indent=2)
 
         return {
-            "request": descriptor_to_dict(request_descriptor),
-            "response": descriptor_to_dict(response_descriptor)
+            "request": json_input,
+            "response": json_output
         }
 
     @abstractmethod
@@ -163,9 +198,9 @@ class BaseModel(ABC):
         pass
 
     @abstractmethod
-    def get_request_descriptor(self) -> Descriptor:
+    def get_request_format(self):
         pass
 
     @abstractmethod
-    def get_response_descriptor(self) -> Descriptor:
+    def get_response_format(self):
         pass

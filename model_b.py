@@ -10,11 +10,11 @@ class ModelB(BaseModel):
         response_obj.status = f"Stored value: {model_b_request.value}"
         return response_obj
 
-    def get_request_descriptor(self):
-        return models_pb2.ModelBRequest.DESCRIPTOR
+    def get_request_format(self):
+        return models_pb2.ModelBRequest()
 
-    def get_response_descriptor(self):
-        return models_pb2.ModelBResponse.DESCRIPTOR
+    def get_response_format(self):
+        return models_pb2.ModelBResponse()
 
 
 if __name__ == "__main__":

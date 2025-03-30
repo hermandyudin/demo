@@ -24,21 +24,25 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cmodels.proto\x12\x06models\" \n\rModelARequest\x12\x0f\n\x07message\x18\x01 \x01(\t\"\x1e\n\rModelBRequest\x12\r\n\x05value\x18\x01 \x01(\x05\"\x1f\n\x0eModelAResponse\x12\r\n\x05reply\x18\x01 \x01(\t\" \n\x0eModelBResponse\x12\x0e\n\x06status\x18\x01 \x01(\x05\"(\n\x04Task\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x0f\n\x07request\x18\x02 \x01(\x0c\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cmodels.proto\x12\x06models\"\x17\n\x04\x46ile\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\x0c\"A\n\x07\x43ontext\x12\x0e\n\x06value1\x18\x01 \x01(\t\x12\x0e\n\x06value2\x18\x02 \x01(\t\x12\x0b\n\x03\x63on\x18\x03 \x01(\t\x12\t\n\x01v\x18\x04 \x03(\x05\"_\n\rModelARequest\x12\x10\n\x08messages\x18\x01 \x03(\t\x12\x1a\n\x04\x66ile\x18\x02 \x01(\x0b\x32\x0c.models.File\x12 \n\x07\x63ontext\x18\x03 \x03(\x0b\x32\x0f.models.Context\"\x1f\n\x0eModelAResponse\x12\r\n\x05reply\x18\x01 \x01(\t\":\n\rModelBRequest\x12\r\n\x05value\x18\x01 \x01(\x05\x12\x1a\n\x04\x66ile\x18\x02 \x01(\x0b\x32\x0c.models.File\" \n\x0eModelBResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\"(\n\x04Task\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x0f\n\x07request\x18\x02 \x01(\x0c\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'models_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_MODELAREQUEST']._serialized_start=24
-  _globals['_MODELAREQUEST']._serialized_end=56
-  _globals['_MODELBREQUEST']._serialized_start=58
-  _globals['_MODELBREQUEST']._serialized_end=88
-  _globals['_MODELARESPONSE']._serialized_start=90
-  _globals['_MODELARESPONSE']._serialized_end=121
-  _globals['_MODELBRESPONSE']._serialized_start=123
-  _globals['_MODELBRESPONSE']._serialized_end=155
-  _globals['_TASK']._serialized_start=157
-  _globals['_TASK']._serialized_end=197
+  _globals['_FILE']._serialized_start=24
+  _globals['_FILE']._serialized_end=47
+  _globals['_CONTEXT']._serialized_start=49
+  _globals['_CONTEXT']._serialized_end=114
+  _globals['_MODELAREQUEST']._serialized_start=116
+  _globals['_MODELAREQUEST']._serialized_end=211
+  _globals['_MODELARESPONSE']._serialized_start=213
+  _globals['_MODELARESPONSE']._serialized_end=244
+  _globals['_MODELBREQUEST']._serialized_start=246
+  _globals['_MODELBREQUEST']._serialized_end=304
+  _globals['_MODELBRESPONSE']._serialized_start=306
+  _globals['_MODELBRESPONSE']._serialized_end=338
+  _globals['_TASK']._serialized_start=340
+  _globals['_TASK']._serialized_end=380
 # @@protoc_insertion_point(module_scope)

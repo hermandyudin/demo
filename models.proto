@@ -2,20 +2,34 @@ syntax = "proto3";
 
 package models;
 
-message ModelARequest {
-  string message = 1;
+message File {
+    bytes content = 1;
 }
 
-message ModelBRequest {
-  int32 value = 1;
+message Context {
+    string value1 = 1;
+    string value2 = 2;
+    string con = 3;
+    repeated int32 v = 4;
+}
+
+message ModelARequest {
+    repeated string messages = 1;
+    File file = 2;
+    repeated Context context = 3;
 }
 
 message ModelAResponse {
-  string reply = 1;
+    string reply = 1;
+}
+
+message ModelBRequest {
+    int32 value = 1;
+    File file = 2;
 }
 
 message ModelBResponse {
-  int32 status = 1;
+    string status = 1;
 }
 
 message Task {
