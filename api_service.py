@@ -113,7 +113,8 @@ class ModelAPIService:
 
     def get_active_models(self):
         try:
-            response = requests.get(f"http://{config['model_registry']['host']}:{config['model_registry']['port']}/models")
+            response = requests.get(
+                f"http://{config['model_registry']['host']}:{config['model_registry']['port']}/models")
             return response.json()
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -138,7 +139,10 @@ class ModelAPIService:
             return {"type": "object", "properties": properties}
 
         elif isinstance(data, list):
-            return {"type": "array", "items": self.generate_openapi_schema(data[0]) if data else {"type": "string"}}
+            return {
+                "type": "array",
+                "items": self.generate_openapi_schema(data[0]) if data else {"type": "string"}
+            }
 
         elif isinstance(data, str):
             return {"type": "string"}
@@ -165,17 +169,32 @@ class ModelAPIService:
             routes=self.app.routes,
         )
 
-        # Basic schema - in real implementation would use model descriptors
         openapi_schema["components"] = {"schemas": {}}
         schema = self.fetch_schemas()
+
         for model_name in self.models:
+            # Generate and store request schema
+            request_data = json.loads(schema[model_name]["request"])
+            request_schema = self.generate_openapi_schema(request_data)
+            request_schema_name = f"{model_name}_Request"
+            openapi_schema["components"]["schemas"][request_schema_name] = request_schema
+
+            # Generate and store response schema
+            response_data = json.loads(schema[model_name]["response"])
+            response_schema = self.generate_openapi_schema(response_data)
+            response_schema_name = f"{model_name}_Response"
+            openapi_schema["components"]["schemas"][response_schema_name] = response_schema
+
+            # Add /tasks POST endpoint
             openapi_schema["paths"][f"/models/{model_name}/tasks"] = {
                 "post": {
                     "summary": f"Submit task to {model_name}",
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "schema": self.generate_openapi_schema(json.loads(schema[model_name]["request"]))
+                                "schema": {
+                                    "$ref": f"#/components/schemas/{request_schema_name}"
+                                }
                             }
                         }
                     },
@@ -184,7 +203,7 @@ class ModelAPIService:
                             "description": "Task submitted successfully",
                             "content": {
                                 "application/json": {
-                                    "schema":  {
+                                    "schema": {
                                         "type": "object",
                                         "properties": {
                                             "task_id": {"type": "integer"}
@@ -197,13 +216,14 @@ class ModelAPIService:
                 }
             }
 
+            # Add /result GET endpoint
             openapi_schema["paths"][f"/models/{model_name}/result"] = {
                 "get": {
                     "summary": f"Get task status from {model_name}",
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "schema":  {
+                                "schema": {
                                     "type": "object",
                                     "properties": {
                                         "task_id": {"type": "integer"}
@@ -214,15 +234,17 @@ class ModelAPIService:
                     },
                     "responses": {
                         "200": {
-                            "description": "Task submitted successfully",
+                            "description": "Result of the task",
                             "content": {
                                 "application/json": {
                                     "schema": {
-                                       "type": "object",
-                                       "properties": {
-                                          "status": {"type": "string"},
-                                           "result": self.generate_openapi_schema(json.loads(schema[model_name]["response"]))
-                                       }
+                                        "type": "object",
+                                        "properties": {
+                                            "status": {"type": "string"},
+                                            "result": {
+                                                "$ref": f"#/components/schemas/{response_schema_name}"
+                                            }
+                                        }
                                     }
                                 }
                             }
