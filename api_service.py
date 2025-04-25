@@ -1,19 +1,16 @@
 import json
 import asyncio
-from fastapi import FastAPI, HTTPException, Depends, Request, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.openapi.utils import get_openapi
-from google.protobuf.descriptor import Descriptor
-from typing import Dict, Any, List, Optional
-import aio_pika
-import redis.asyncio as aioredis
-import uuid
 import secrets
 import requests
+import redis.asyncio as aioredis
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.openapi.utils import get_openapi
 from contextlib import asynccontextmanager
+from openapi_utils import generate_openapi_schema, generate_model_paths
 
-# Configuration
-with open('config.json') as f:
+# Load configuration
+with open("config.json") as f:
     config = json.load(f)
 
 # Security setup
@@ -26,6 +23,8 @@ class ModelAPIService:
         self.app = FastAPI(lifespan=self.lifespan)
         self.redis = None
         self.models = {}
+        self.schema_cache = {}
+        self.refresh_interval = config.get("refresh_interval", 60)
         self._setup_routes()
 
     def _setup_routes(self):
@@ -35,11 +34,10 @@ class ModelAPIService:
 
     @asynccontextmanager
     async def lifespan(self, app: FastAPI):
-        # Startup
         await self.connect_redis()
         await self.discover_models()
+        asyncio.create_task(self.refresh_models_loop())
         yield
-        # Shutdown
         await self.close_redis()
 
     async def connect_redis(self):
@@ -51,8 +49,16 @@ class ModelAPIService:
         if self.redis:
             await self.redis.close()
 
+    async def refresh_models_loop(self):
+        """Background task to refresh model list and OpenAPI schema periodically."""
+        while True:
+            await self.discover_models()
+            self.schema_cache = {}
+            self.app.openapi_schema = None
+            await asyncio.sleep(self.refresh_interval)
+
     async def discover_models(self):
-        """Fetch available models from registry"""
+        """Fetch available models from the registry service."""
         registry_url = f"http://{config['model_registry']['host']}:{config['model_registry']['port']}/models"
         try:
             response = requests.get(registry_url)
@@ -62,54 +68,29 @@ class ModelAPIService:
             self.models = {}
 
     async def authenticate(self, credentials: HTTPBasicCredentials):
-        # In a real implementation, validate against your user store
+        # In production, validate user from DB or external system
         token = secrets.token_hex(16)
         active_users[token] = credentials.username
         return token
 
-    # Helper methods for Protobuf to OpenAPI conversion
-    def descriptor_to_swagger(self, descriptor: Descriptor) -> Dict[str, Any]:
-        schema = {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
+    # =======================
+    #        API ROUTES
+    # =======================
 
-        for field in descriptor.fields:
-            field_schema = self._field_to_swagger(field)
-            schema["properties"][field.name] = field_schema
-            if field.label == field.LABEL_REQUIRED:
-                schema["required"].append(field.name)
-
-        return schema
-
-    def _field_to_swagger(self, field) -> Dict[str, Any]:
-        type_map = {
-            1: {"type": "number", "format": "double"},
-            5: {"type": "integer", "format": "int32"},
-            8: {"type": "string"},
-            9: {"$ref": f"#/components/schemas/{field.message_type.name}"},
-            10: {"type": "string", "enum": [v.name for v in field.enum_type.values]},
-        }
-
-        if field.label == field.LABEL_REPEATED:
-            return {"type": "array", "items": type_map.get(field.type, {"type": "string"})}
-
-        return type_map.get(field.type, {"type": "string"})
-
-    # API Endpoints
     async def list_models(self):
         return {"models": list(self.models.keys())}
 
     async def get_task_status(self, task_id: str, credentials: HTTPBasicCredentials = Depends(security)):
         token = await self.authenticate(credentials)
         user = active_users[token]
-
         result = await self.redis.get(f"{user}:{task_id}")
         if not result:
             return {"task_id": task_id, "status": "not_found"}
-
         return {"task_id": task_id, "status": "completed", "result": result.decode()}
+
+    # =======================
+    #     OPENAPI HELPERS
+    # =======================
 
     def get_active_models(self):
         try:
@@ -120,6 +101,10 @@ class ModelAPIService:
             raise HTTPException(status_code=500, detail=str(e))
 
     def fetch_schemas(self):
+        """Fetch /schema from each model. Cached until next refresh."""
+        if self.schema_cache:
+            return self.schema_cache
+
         schemas = {}
         models = self.get_active_models()
         for model_name, model_info in models.items():
@@ -128,36 +113,32 @@ class ModelAPIService:
                 schemas[model_name] = response.json()
             except requests.exceptions.RequestException as e:
                 print(f"Failed to fetch schema for {model_name}: {e}")
+        self.schema_cache = schemas
         return schemas
 
     def generate_openapi_schema(self, data):
-        """
-        Recursively converts a Python dictionary into an OpenAPI schema.
-        """
+        """Recursively generates an OpenAPI schema from a nested dict."""
         if isinstance(data, dict):
-            properties = {key: self.generate_openapi_schema(value) for key, value in data.items()}
-            return {"type": "object", "properties": properties}
-
+            return {
+                "type": "object",
+                "properties": {
+                    key: self.generate_openapi_schema(value) for key, value in data.items()
+                }
+            }
         elif isinstance(data, list):
             return {
                 "type": "array",
                 "items": self.generate_openapi_schema(data[0]) if data else {"type": "string"}
             }
-
         elif isinstance(data, str):
             return {"type": "string"}
-
         elif isinstance(data, int):
             return {"type": "integer"}
-
         elif isinstance(data, float):
             return {"type": "number"}
-
         elif isinstance(data, bool):
             return {"type": "boolean"}
-
-        else:
-            return {"type": "string"}
+        return {"type": "string"}
 
     def custom_openapi(self):
         if self.app.openapi_schema:
@@ -170,88 +151,29 @@ class ModelAPIService:
         )
 
         openapi_schema["components"] = {"schemas": {}}
-        schema = self.fetch_schemas()
+        schema_data = self.fetch_schemas()
 
-        for model_name in self.models:
-            # Generate and store request schema
-            request_data = json.loads(schema[model_name]["request"])
-            request_schema = self.generate_openapi_schema(request_data)
-            request_schema_name = f"{model_name}_Request"
-            openapi_schema["components"]["schemas"][request_schema_name] = request_schema
+        for model_name, schema in schema_data.items():
+            req_data = json.loads(schema.get("request", "{}"))
+            res_data = json.loads(schema.get("response", "{}"))
 
-            # Generate and store response schema
-            response_data = json.loads(schema[model_name]["response"])
-            response_schema = self.generate_openapi_schema(response_data)
-            response_schema_name = f"{model_name}_Response"
-            openapi_schema["components"]["schemas"][response_schema_name] = response_schema
+            request_schema = generate_openapi_schema(req_data)
+            response_schema = generate_openapi_schema(res_data)
 
-            # Add /tasks POST endpoint
-            openapi_schema["paths"][f"/models/{model_name}/tasks"] = {
-                "post": {
-                    "summary": f"Submit task to {model_name}",
-                    "requestBody": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": f"#/components/schemas/{request_schema_name}"
-                                }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Task submitted successfully",
-                            "content": {
-                                "application/json": {
-                                    "schema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "task_id": {"type": "integer"}
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            req_name = f"{model_name}_Request"
+            res_name = f"{model_name}_Response"
 
-            # Add /result GET endpoint
-            openapi_schema["paths"][f"/models/{model_name}/result"] = {
-                "get": {
-                    "summary": f"Get task status from {model_name}",
-                    "requestBody": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "task_id": {"type": "integer"}
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Result of the task",
-                            "content": {
-                                "application/json": {
-                                    "schema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "status": {"type": "string"},
-                                            "result": {
-                                                "$ref": f"#/components/schemas/{response_schema_name}"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            # Register in components
+            openapi_schema["components"]["schemas"][req_name] = request_schema
+            openapi_schema["components"]["schemas"][res_name] = response_schema
+
+            # Register in paths
+            paths = generate_model_paths(
+                model_name,
+                request_schema_ref=f"#/components/schemas/{req_name}",
+                response_schema_ref=f"#/components/schemas/{res_name}",
+            )
+            openapi_schema["paths"].update(paths)
 
         self.app.openapi_schema = openapi_schema
         return openapi_schema

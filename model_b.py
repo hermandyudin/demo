@@ -11,10 +11,10 @@ class ModelB(BaseModel):
         return response_obj
 
     def get_request_format(self):
-        return models_pb2.ModelBRequest()
+        return models_pb2.ModelBRequest.DESCRIPTOR
 
     def get_response_format(self):
-        return models_pb2.ModelBResponse()
+        return models_pb2.ModelBResponse.DESCRIPTOR
 
 
 if __name__ == "__main__":
