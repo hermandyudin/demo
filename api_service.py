@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.openapi.utils import get_openapi
 from contextlib import asynccontextmanager
-from openapi_utils import generate_openapi_schema, generate_model_paths
+from openapi_utils import generate_openapi_schema, generate_model_paths, fill_defaults_from_descriptor, parse_descriptor
 
 # Load configuration
 with open("config.json") as f:
@@ -23,7 +23,7 @@ class ModelAPIService:
         self.app = FastAPI(lifespan=self.lifespan)
         self.redis = None
         self.models = {}
-        self.schema_cache = {}
+        self.descriptors_cache = {}
         self.refresh_interval = config.get("refresh_interval", 60)
         self._setup_routes()
 
@@ -53,7 +53,7 @@ class ModelAPIService:
         """Background task to refresh model list and OpenAPI schema periodically."""
         while True:
             await self.discover_models()
-            self.schema_cache = {}
+            self.descriptors_cache = {}
             self.app.openapi_schema = None
             await asyncio.sleep(self.refresh_interval)
 
@@ -100,21 +100,30 @@ class ModelAPIService:
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    def fetch_schemas(self):
-        """Fetch /schema from each model. Cached until next refresh."""
-        if self.schema_cache:
-            return self.schema_cache
+    def fetch_descriptors(self):
+        """Fetch descriptors and build default-filled JSONs."""
+        if self.descriptors_cache:
+            return self.descriptors_cache
 
-        schemas = {}
+        descriptors = {}
         models = self.get_active_models()
         for model_name, model_info in models.items():
             try:
-                response = requests.get(f"http://{model_info['host']}:{model_info['port']}/schema")
-                schemas[model_name] = response.json()
+                req_desc_resp = requests.get(f"http://{model_info['host']}:{model_info['port']}/get_request_format")
+                res_desc_resp = requests.get(f"http://{model_info['host']}:{model_info['port']}/get_response_format")
+
+                req_desc = parse_descriptor(req_desc_resp.content)
+                res_desc = parse_descriptor(res_desc_resp.content)
+
+                descriptors[model_name] = {
+                    "request": req_desc,
+                    "response": res_desc
+                }
             except requests.exceptions.RequestException as e:
                 print(f"Failed to fetch schema for {model_name}: {e}")
-        self.schema_cache = schemas
-        return schemas
+
+        self.descriptors_cache = descriptors
+        return descriptors
 
     def generate_openapi_schema(self, data):
         """Recursively generates an OpenAPI schema from a nested dict."""
@@ -151,11 +160,11 @@ class ModelAPIService:
         )
 
         openapi_schema["components"] = {"schemas": {}}
-        schema_data = self.fetch_schemas()
+        descriptors_data = self.fetch_descriptors()
 
-        for model_name, schema in schema_data.items():
-            req_data = json.loads(schema.get("request", "{}"))
-            res_data = json.loads(schema.get("response", "{}"))
+        for model_name, descriptors in descriptors_data.items():
+            req_data = fill_defaults_from_descriptor(descriptors.get("request"))
+            res_data = fill_defaults_from_descriptor(descriptors.get("response"))
 
             request_schema = generate_openapi_schema(req_data)
             response_schema = generate_openapi_schema(res_data)

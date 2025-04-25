@@ -1,5 +1,6 @@
 import asyncio
 import atexit
+import base64
 import json
 import socket
 from abc import ABC, abstractmethod
@@ -8,7 +9,7 @@ import redis.asyncio as aioredis
 import requests
 from aio_pika import connect_robust, IncomingMessage
 from fastapi import FastAPI, Request, Response
-from google.protobuf.descriptor import Descriptor
+from google.protobuf import descriptor_pb2
 
 import models_pb2
 
@@ -33,7 +34,8 @@ class BaseModel(ABC):
     def _setup_routes(self):
         self.app.get("/ping")(self._ping)
         self.app.post("/task")(self._handle_task)
-        self.app.get("/schema")(self._get_schema)
+        self.app.get("/get_request_format")(self._get_request_format)
+        self.app.get("/get_response_format")(self._get_response_format)
 
     async def lifespan(self, app: FastAPI):
         await self._connect_redis()
@@ -64,17 +66,29 @@ class BaseModel(ABC):
         except Exception as e:
             return Response(content=f"ProtoBuf decoding error: {str(e)}", status_code=400)
 
-    async def _get_schema(self):
-        input_desc = self.get_request_format()
-        output_desc = self.get_response_format()
-
-        request_example = self._fill_defaults_from_descriptor(input_desc)
-        response_example = self._fill_defaults_from_descriptor(output_desc)
-
-        return {
-            "request": json.dumps(request_example, indent=2),
-            "response": json.dumps(response_example, indent=2)
+    async def _get_request_format(self):
+        descriptor = self.get_request_format()
+        file_proto = descriptor_pb2.FileDescriptorProto()
+        descriptor.file.CopyToProto(file_proto)
+        descriptor_bytes = file_proto.SerializeToString()
+        descriptor_base64 = base64.b64encode(descriptor_bytes).decode('utf-8')
+        response_data = {
+            'message_name': descriptor.full_name,
+            'descriptor_bytes': descriptor_base64
         }
+        return Response(json.dumps(response_data), media_type='application/json')
+
+    async def _get_response_format(self):
+        descriptor = self.get_response_format()
+        file_proto = descriptor_pb2.FileDescriptorProto()
+        descriptor.file.CopyToProto(file_proto)
+        descriptor_bytes = file_proto.SerializeToString()
+        descriptor_base64 = base64.b64encode(descriptor_bytes).decode('utf-8')
+        response_data = {
+            'message_name': descriptor.full_name,
+            'descriptor_bytes': descriptor_base64
+        }
+        return Response(json.dumps(response_data), media_type='application/json')
 
     # -------------------- Redis & RabbitMQ --------------------
     async def _connect_redis(self):
@@ -143,30 +157,6 @@ class BaseModel(ABC):
             return socket.gethostbyname(socket.gethostname())
         except Exception:
             return "127.0.0.1"
-
-    def _fill_defaults_from_descriptor(self, descriptor: Descriptor):
-        result = {}
-        for field in descriptor.fields:
-            if field.label == field.LABEL_REPEATED:
-                result[field.name] = [
-                    self._fill_defaults_from_descriptor(field.message_type)
-                ] if field.message_type else [self._get_default_value(field)]
-            elif field.message_type:
-                result[field.name] = self._fill_defaults_from_descriptor(field.message_type)
-            else:
-                result[field.name] = self._get_default_value(field)
-        return result
-
-    def _get_default_value(self, field):
-        if field.cpp_type == field.CPPTYPE_STRING:
-            return ""
-        if field.cpp_type in (field.CPPTYPE_INT32, field.CPPTYPE_INT64):
-            return 0
-        if field.cpp_type == field.CPPTYPE_BOOL:
-            return False
-        if field.cpp_type in (field.CPPTYPE_FLOAT, field.CPPTYPE_DOUBLE):
-            return 0.0
-        return None
 
     # -------------------- Abstract Methods --------------------
     @abstractmethod
