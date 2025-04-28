@@ -2,9 +2,6 @@ syntax = "proto3";
 
 package models;
 
-message File {
-    bytes content = 1;
-}
 
 message Context {
     string value1 = 1;
@@ -15,8 +12,7 @@ message Context {
 
 message ModelARequest {
     repeated string messages = 1;
-    File file = 2;
-    repeated Context context = 3;
+    repeated Context context = 2;
 }
 
 message ModelAResponse {
@@ -25,7 +21,6 @@ message ModelAResponse {
 
 message ModelBRequest {
     int32 value = 1;
-    File file = 2;
 }
 
 message ModelBResponse {

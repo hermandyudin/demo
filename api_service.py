@@ -1,21 +1,19 @@
-import json
+# api_component.py
+
 import asyncio
-import secrets
+import uuid
 import requests
 import redis.asyncio as aioredis
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.openapi.utils import get_openapi
 from contextlib import asynccontextmanager
-from openapi_utils import generate_openapi_schema, generate_model_paths, fill_defaults_from_descriptor, parse_descriptor
+from aio_pika import connect_robust, Message
+from openapi_utils import *
+import models_pb2
 
 # Load configuration
 with open("config.json") as f:
     config = json.load(f)
-
-# Security setup
-security = HTTPBasic()
-active_users = {}
 
 
 class ModelAPIService:
@@ -25,25 +23,38 @@ class ModelAPIService:
         self.models = {}
         self.descriptors_cache = {}
         self.refresh_interval = config.get("refresh_interval", 60)
+        self.rabbitmq_channel = None
         self._setup_routes()
 
     def _setup_routes(self):
         self.app.get("/models")(self.list_models)
-        self.app.get("/tasks/{task_id}")(self.get_task_status)
+        self.app.post("/models/{model_name}/tasks")(self.submit_task)
+        self.app.get("/models/{model_name}/result")(self.get_task_result)
         self.app.openapi = self.custom_openapi
 
     @asynccontextmanager
     async def lifespan(self, app: FastAPI):
         await self.connect_redis()
+        await self.connect_rabbitmq()
         await self.discover_models()
         asyncio.create_task(self.refresh_models_loop())
         yield
+        await self.close_rabbitmq()
         await self.close_redis()
 
     async def connect_redis(self):
         self.redis = await aioredis.from_url(
             f"redis://{config['redis']['host']}:{config['redis']['port']}"
         )
+
+    async def connect_rabbitmq(self):
+        rabbitmq_host = config['rabbitmq']['host']
+        connection = await connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
+        self.rabbitmq_channel = await connection.channel()
+
+    async def close_rabbitmq(self):
+        if self.rabbitmq_channel:
+            await self.rabbitmq_channel.close()
 
     async def close_redis(self):
         if self.redis:
@@ -67,30 +78,56 @@ class ModelAPIService:
             print(f"Failed to fetch models from registry: {e}")
             self.models = {}
 
-    async def authenticate(self, credentials: HTTPBasicCredentials):
-        # In production, validate user from DB or external system
-        token = secrets.token_hex(16)
-        active_users[token] = credentials.username
-        return token
-
-    # =======================
+    # ======================
     #        API ROUTES
-    # =======================
+    # ======================
 
     async def list_models(self):
         return {"models": list(self.models.keys())}
 
-    async def get_task_status(self, task_id: str, credentials: HTTPBasicCredentials = Depends(security)):
-        token = await self.authenticate(credentials)
-        user = active_users[token]
-        result = await self.redis.get(f"{user}:{task_id}")
-        if not result:
-            return {"task_id": task_id, "status": "not_found"}
-        return {"task_id": task_id, "status": "completed", "result": result.decode()}
+    async def submit_task(self, model_name: str, request: Request):
+        """Accept JSON input, convert to Protobuf, publish to RabbitMQ"""
+        if model_name not in self.models:
+            raise HTTPException(status_code=404, detail="Model not found")
 
-    # =======================
+        # Parse JSON request
+        json_body = await request.json()
+
+        # Get descriptor
+        descriptor = self.get_descriptor(model_name, "request")
+        message = json_to_protobuf(descriptor, json_body)
+
+        # Prepare Task
+        task = models_pb2.Task()
+        task.task_id = str(uuid.uuid4())
+        task.request = message.SerializeToString()
+
+        # Publish to RabbitMQ
+        queue_name = model_name
+        await self.rabbitmq_channel.default_exchange.publish(
+            Message(body=task.SerializeToString()),
+            routing_key=queue_name
+        )
+
+        return {"task_id": task.task_id}
+
+    async def get_task_result(self, model_name: str, task_id: str):
+        """Fetch result from Redis, decode Proto, return as JSON"""
+        full_task_id = task_id
+
+        print(f"{full_task_id}\n")
+
+        data = await self.redis.get(full_task_id)
+        if not data:
+            return {"task_id": task_id, "status": "not_found"}
+
+        descriptor = self.get_descriptor(model_name, "response")
+        message = bytes_to_protobuf(descriptor, data)
+        return {"task_id": task_id, "status": "completed", "result": protobuf_to_dict(message)}
+
+    # ======================
     #     OPENAPI HELPERS
-    # =======================
+    # ======================
 
     def get_active_models(self):
         try:
@@ -125,29 +162,12 @@ class ModelAPIService:
         self.descriptors_cache = descriptors
         return descriptors
 
-    def generate_openapi_schema(self, data):
-        """Recursively generates an OpenAPI schema from a nested dict."""
-        if isinstance(data, dict):
-            return {
-                "type": "object",
-                "properties": {
-                    key: self.generate_openapi_schema(value) for key, value in data.items()
-                }
-            }
-        elif isinstance(data, list):
-            return {
-                "type": "array",
-                "items": self.generate_openapi_schema(data[0]) if data else {"type": "string"}
-            }
-        elif isinstance(data, str):
-            return {"type": "string"}
-        elif isinstance(data, int):
-            return {"type": "integer"}
-        elif isinstance(data, float):
-            return {"type": "number"}
-        elif isinstance(data, bool):
-            return {"type": "boolean"}
-        return {"type": "string"}
+    def get_descriptor(self, model_name, kind):
+        """Helper to get request or response descriptor."""
+        descriptors = self.fetch_descriptors()
+        if model_name not in descriptors:
+            raise HTTPException(status_code=404, detail=f"Descriptor for model {model_name} not found.")
+        return descriptors[model_name][kind]
 
     def custom_openapi(self):
         if self.app.openapi_schema:

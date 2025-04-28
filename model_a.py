@@ -8,7 +8,7 @@ class ModelA(BaseModel):
         model_a_request = models_pb2.ModelARequest()
         model_a_request.ParseFromString(body)  # Correct deserialization
         response_obj = models_pb2.ModelAResponse()
-        response_obj.reply = f"Processed message: {model_a_request.message}"
+        response_obj.reply = f"Processed message: {model_a_request.messages}\n"
         return response_obj
 
     def get_request_format(self):
