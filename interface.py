@@ -117,7 +117,13 @@ class BaseModel(ABC):
             print(f"Task ID: {task.task_id}")
 
             result = await self.process_request(task.request)
-            await self.redis.set(task.task_id, result.SerializeToString())
+            task_id = task.task_id
+            if ":" not in task_id:
+                print("[!] Task ID does not contain user_id. Possible misconfiguration.")
+            else:
+                pass
+
+            await self.redis.set(task_id, result.SerializeToString())
             print(f"[*] Stored result in Redis with key: {task.task_id}")
 
     # -------------------- Registry --------------------

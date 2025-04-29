@@ -4,6 +4,41 @@ from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 import base64
 import json
 
+static_openapi_schemas = {
+    "User": {
+        "type": "object",
+        "properties": {
+            "username": {"type": "string"},
+            "password": {"type": "string"},
+        },
+        "required": ["username", "password"]
+    },
+    "HTTPValidationError": {
+        "type": "object",
+        "properties": {
+            "detail": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "loc": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "msg": {"type": "string"},
+                        "type": {"type": "string"}
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+def inject_static_schemas(openapi_schema: dict):
+    """Injects predefined static schemas like User and HTTPValidationError into the OpenAPI schema."""
+    openapi_schema.setdefault("components", {}).setdefault("schemas", {}).update(static_openapi_schemas)
+
 
 def generate_openapi_schema(data):
     """Recursively generates OpenAPI schema from a dictionary."""
@@ -29,7 +64,7 @@ def generate_openapi_schema(data):
 
 
 def generate_model_paths(model_name, request_schema_ref, response_schema_ref):
-    """Generates OpenAPI paths for a given model based on schema references."""
+    """Generates OpenAPI paths for a given model based on schema references, with security."""
     return {
         f"/models/{model_name}/tasks": {
             "post": {
@@ -55,7 +90,8 @@ def generate_model_paths(model_name, request_schema_ref, response_schema_ref):
                             }
                         }
                     }
-                }
+                },
+                "security": [{"BearerAuth": []}]
             }
         },
         f"/models/{model_name}/result": {
@@ -85,7 +121,8 @@ def generate_model_paths(model_name, request_schema_ref, response_schema_ref):
                             }
                         }
                     }
-                }
+                },
+                "security": [{"BearerAuth": []}]
             }
         }
     }
@@ -139,8 +176,9 @@ def parse_descriptor(response_content):
     file_descriptor_proto = descriptor_pb2.FileDescriptorProto()
     file_descriptor_proto.ParseFromString(descriptor_bytes)
 
-    # Create DescriptorPool
-    pool = descriptor_pool.Default()
+    # Use a new descriptor pool to avoid duplicate file issues
+    pool = descriptor_pool.DescriptorPool()
+    pool.Add(file_descriptor_proto)
 
     try:
         file_descriptor = pool.AddSerializedFile(descriptor_bytes)
