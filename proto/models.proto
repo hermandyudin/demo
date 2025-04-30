@@ -16,7 +16,7 @@ message ModelARequest {
 }
 
 message ModelAResponse {
-    string reply = 1;
+    int32 reply = 1;
 }
 
 message ModelBRequest {
