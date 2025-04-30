@@ -94,8 +94,8 @@ class ModelAPIService:
 
     def _setup_routes(self):
         self.app.get("/models")(self.list_models)
-        self.app.post("/models/{model_name}/tasks")(self.submit_task)
-        self.app.get("/models/{model_name}/result")(self.get_task_result)
+        self.app.post("/models/{model_name}/tasks", include_in_schema=False)(self.submit_task)
+        self.app.get("/models/{model_name}/result", include_in_schema=False)(self.get_task_result)
         self.app.post("/register")(self.register_user)
         self.app.post("/login")(self.login_user)
         self.app.openapi = self.custom_openapi
