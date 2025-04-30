@@ -30,7 +30,7 @@ def parse_proto_dir(path):
     return fields, reserved_nums, reserved_names
 
 
-prev_fields, prev_reserved_nums, prev_reserved_names = parse_proto_dir("main")
+prev_fields, prev_reserved_nums, prev_reserved_names = parse_proto_dir("master")
 curr_fields, curr_reserved_nums, curr_reserved_names = parse_proto_dir("current")
 
 errors = []
