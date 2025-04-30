@@ -19,15 +19,18 @@ if os.path.exists(REGISTRY_FILE):
 else:
     models = {}
 
+
 # Save models to file
 def save_registry():
     with open(REGISTRY_FILE, "w") as f:
         json.dump(models, f)
 
+
 @app.get("/models")
 def get_models():
     """Return a list of active models"""
     return models
+
 
 @app.post("/register")
 def register_model(model_name: str, host: str, port: int):
@@ -35,6 +38,7 @@ def register_model(model_name: str, host: str, port: int):
     models[model_name] = {"host": host, "port": port, "last_ping": time.time()}
     save_registry()
     return {"message": f"Model {model_name} registered successfully."}
+
 
 @app.post("/unregister")
 def unregister_model(model_name: str):
@@ -44,6 +48,7 @@ def unregister_model(model_name: str):
         save_registry()
         return {"message": f"Model {model_name} removed from registry."}
     raise HTTPException(status_code=404, detail="Model not found.")
+
 
 # Health check (removes dead models)
 def health_check():
@@ -61,9 +66,11 @@ def health_check():
                 del models[model_name]
         save_registry()
 
+
 # Start health check thread
 threading.Thread(target=health_check, daemon=True).start()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=9000)

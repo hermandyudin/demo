@@ -2,7 +2,7 @@ import asyncio
 import uuid
 import requests
 import redis.asyncio as aioredis
-from fastapi import FastAPI, HTTPException, Request, Security
+from fastapi import FastAPI, HTTPException, Response, Request, Security
 from fastapi.openapi.utils import get_openapi
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -155,9 +155,19 @@ class ModelAPIService:
         if model_name not in self.models:
             raise HTTPException(status_code=404, detail="Model not found")
 
-        json_body = await request.json()
+        content_type = request.headers.get("content-type", "").lower()
         descriptor = self.get_descriptor(model_name, "request")
-        message = json_to_protobuf(descriptor, json_body)
+
+        if "application/x-protobuf" in content_type:
+            body = await request.body()
+            message_class = make_message_class(descriptor)
+            message = message_class()
+            message.ParseFromString(body)
+        elif "application/json" in content_type:
+            json_body = await request.json()
+            message = json_to_protobuf(descriptor, json_body)
+        else:
+            raise HTTPException(status_code=415, detail="Unsupported Content-Type")
 
         task = models_pb2.Task()
         task_uid = uuid.uuid4()
@@ -169,9 +179,10 @@ class ModelAPIService:
             routing_key=model_name
         )
 
-        return {"task_id": task_uid}
+        return {"task_id": str(task_uid)}
 
-    async def get_task_result(self, model_name: str, task_id: str, user_id: str = Security(get_current_user)):
+    async def get_task_result(self, model_name: str, task_id: str, request: Request,
+                              user_id: str = Security(get_current_user)):
         full_task_id = f"{user_id}:{task_id}"
         data = await self.redis.get(full_task_id)
         if not data:
@@ -179,7 +190,16 @@ class ModelAPIService:
 
         descriptor = self.get_descriptor(model_name, "response")
         message = bytes_to_protobuf(descriptor, data)
-        return {"task_id": task_id, "status": "completed", "result": protobuf_to_dict(message)}
+
+        accept = request.headers.get("accept", "").lower()
+        if "application/x-protobuf" in accept:
+            return Response(content=message.SerializeToString(), media_type="application/x-protobuf")
+
+        return {
+            "task_id": task_id,
+            "status": "completed",
+            "result": protobuf_to_dict(message)
+        }
 
     # ======================
     #     AUTH ROUTES

@@ -64,7 +64,6 @@ def generate_openapi_schema(data):
 
 
 def generate_model_paths(model_name, request_schema_ref, response_schema_ref):
-    """Generates OpenAPI paths for a given model based on schema references, with security."""
     return {
         f"/models/{model_name}/tasks": {
             "post": {
@@ -73,8 +72,12 @@ def generate_model_paths(model_name, request_schema_ref, response_schema_ref):
                     "content": {
                         "application/json": {
                             "schema": {"$ref": request_schema_ref}
+                        },
+                        "application/x-protobuf": {
+                            "schema": {"type": "string", "format": "binary"}
                         }
-                    }
+                    },
+                    "required": True
                 },
                 "responses": {
                     "200": {
@@ -118,6 +121,9 @@ def generate_model_paths(model_name, request_schema_ref, response_schema_ref):
                                         "result": {"$ref": response_schema_ref}
                                     }
                                 }
+                            },
+                            "application/x-protobuf": {
+                                "schema": {"type": "string", "format": "binary"}
                             }
                         }
                     }

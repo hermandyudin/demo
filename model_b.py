@@ -2,6 +2,7 @@ from interface import BaseModel
 import models_pb2
 import uvicorn
 
+
 class ModelB(BaseModel):
     def process_request(self, body):
         model_b_request = models_pb2.ModelBRequest()
