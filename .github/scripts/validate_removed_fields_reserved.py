@@ -7,26 +7,34 @@ def parse_proto_dir(path):
     reserved_nums = set()
     reserved_names = set()
 
-    for file in os.listdir(path):
-        if not file.endswith(".proto"):
-            continue
-        with open(os.path.join(path, file)) as f:
-            text = f.read()
-            message_blocks = re.findall(r'message\s+(\w+)\s*{([^}]*)}', text, re.DOTALL)
-            for msg_name, msg_body in message_blocks:
-                for line in msg_body.splitlines():
-                    field_match = re.search(r'\s*\w+\s+(\w+)\s*=\s*(\d+);', line)
-                    reserved_num_match = re.findall(r'reserved\s+([0-9, ]+);', line)
-                    reserved_name_match = re.findall(r'reserved\s+"([^"]+)";', line)
+    for root, _, files in os.walk(path):
+        for file in files:
+            if not file.endswith(".proto"):
+                continue
+            with open(os.path.join(root, file)) as f:
+                text = f.read()
 
-                    if field_match:
-                        fields.setdefault(msg_name, {})[field_match.group(1)] = field_match.group(2)
+                message_blocks = re.findall(r'message\s+(\w+)\s*{([^}]*)}', text, re.DOTALL)
+                for msg_name, msg_body in message_blocks:
+                    for line in msg_body.splitlines():
+                        # Match fields
+                        field_match = re.search(r'\s*\w+\s+(\w+)\s*=\s*(\d+);', line)
+                        if field_match:
+                            fname, fnum = field_match.groups()
+                            fields.setdefault(msg_name, {})[fname] = fnum
 
-                    for group in reserved_num_match:
-                        nums = [n.strip() for n in group.split(',')]
-                        reserved_nums.update(nums)
+                        # Match reserved numbers
+                        reserved_nums_matches = re.findall(r'reserved\s+([0-9,\s]+);', line)
+                        for match in reserved_nums_matches:
+                            nums = [n.strip() for n in match.split(',') if n.strip()]
+                            reserved_nums.update(nums)
 
-                    reserved_names.update(reserved_name_match)
+                        # Match reserved names
+                        reserved_names_matches = re.findall(r'reserved\s+((?:"[^"]+",?\s*)+);', line)
+                        for match in reserved_names_matches:
+                            names = re.findall(r'"([^"]+)"', match)
+                            reserved_names.update(names)
+
     return fields, reserved_nums, reserved_names
 
 
