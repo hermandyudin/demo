@@ -1,4 +1,4 @@
-name: Check Protobuf Compatibility
+name: Proto Compatibility Check
 
 on:
   pull_request:
@@ -7,24 +7,44 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '**/*.proto'
 
 jobs:
-  buf-breaking:
-    name: Check Breaking Changes
+  proto-breaking-check:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout current branch
+      - name: Checkout current (PR) branch
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # required for `buf` to diff against master
 
-      - name: Set up buf
+      - name: Set up Buf CLI
         uses: bufbuild/buf-setup-action@v1
 
-      - name: Check for breaking changes
-        uses: bufbuild/buf-breaking-action@v1
-        with:
-          against: "https://github.com/${{ github.repository }}.git#branch=master"
+      - name: Generate current version protos
+        run: |
+          mkdir current
+          cp -r ./*.proto current/
+
+      - name: Fetch main branch for comparison
+        run: |
+          git fetch origin main
+          mkdir main
+          git checkout origin/main -- ./*.proto
+          cp -r ./*.proto main/
+
+      - name: Run Buf breaking check
+        id: buf_check
+        continue-on-error: true
+        run: |
+          buf breaking --against "main" > buf_output.txt
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Run custom compatibility check
+        if: steps.buf_check.outputs.exit_code != '0'
+        run: |
+          python .github/scripts/validate_removed_fields_reserved.py
+
+      - name: Fail on actual breaking change
+        if: steps.buf_check.outputs.exit_code != '0'
+        run: |
+          echo "Breaking change detected. Not all removed fields are reserved." >&2
+          exit 1
