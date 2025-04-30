@@ -30,12 +30,12 @@ jobs:
           mkdir -p current
           find . -name "*.proto" -exec cp --parents {} current \;
 
-      - name: Get proto files from main
+      - name: Get proto files from master
         run: |
-          git fetch origin main
-          git checkout origin/main -- .
-          mkdir -p main
-          find . -name "*.proto" -exec cp --parents {} main \;
+          git fetch origin master
+          git checkout origin/master -- .
+          mkdir -p master
+          find . -name "*.proto" -exec cp --parents {} master \;
 
       - name: Run proto compatibility check script
         run: |
