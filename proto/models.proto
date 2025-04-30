@@ -17,7 +17,6 @@ message ModelARequest {
 
 message ModelAResponse {
     int32 reply = 1;
-    reserved "con";
 }
 
 message ModelBRequest {
