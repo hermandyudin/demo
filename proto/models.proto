@@ -7,7 +7,7 @@ message Context {
     string value1 = 1;
     string value2 = 2;
     reserved 3;
-    reserved con;
+    reserved "con";
     repeated int32 v = 4;
 }
 
