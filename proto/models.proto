@@ -13,11 +13,11 @@ message Context {
 message ModelARequest {
     repeated string messages = 1;
     repeated Context context = 2;
-    reserved "con";
 }
 
 message ModelAResponse {
     int32 reply = 1;
+    reserved "con";
 }
 
 message ModelBRequest {
