@@ -1,0 +1,30 @@
+name: Check Protobuf Compatibility
+
+on:
+  pull_request:
+    paths:
+      - '**/*.proto'
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.proto'
+
+jobs:
+  buf-breaking:
+    name: Check Breaking Changes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # required for `buf` to diff against master
+
+      - name: Set up buf
+        uses: bufbuild/buf-setup-action@v1
+
+      - name: Check for breaking changes
+        uses: bufbuild/buf-breaking-action@v1
+        with:
+          against: "https://github.com/${{ github.repository }}.git#branch=master"
