@@ -39,7 +39,7 @@ jobs:
 
       - name: Run proto compatibility check script
         run: |
-          python validate_removed_fields_reserved.py
+          python .github/scripts/validate_removed_fields_reserved.py
 
       - name: Show success message
         if: success()
