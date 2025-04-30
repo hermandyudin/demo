@@ -6,7 +6,6 @@ package models;
 message Context {
     string value1 = 1;
     reserved "value2";
-    reserved "con";
     reserved 2, 3;
     repeated int32 v = 4;
 }
@@ -14,6 +13,7 @@ message Context {
 message ModelARequest {
     repeated string messages = 1;
     repeated Context context = 2;
+    reserved "con";
 }
 
 message ModelAResponse {
