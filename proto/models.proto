@@ -5,9 +5,8 @@ package models;
 
 message Context {
     string value1 = 1;
-    reserved "value2";
-    reserved 2;
-    string con = 3;
+    reserved "value2", "con";
+    reserved 2, 3;
     repeated int32 v = 4;
 }
 
