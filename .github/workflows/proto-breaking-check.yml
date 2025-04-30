@@ -13,25 +13,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Ensure full history for comparing with main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
       - name: Set up Buf CLI
         uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate current version protos
+      - name: Copy current version of .proto files
         run: |
           mkdir -p current
-          find . -name "*.proto" -exec cp --parents {} current/
+          find . -name "*.proto" -exec cp --parents {} current \;
 
-      - name: Fetch and prepare main branch protos
+      - name: Get proto files from main
         run: |
           git fetch origin main
           git checkout origin/main -- .
           mkdir -p main
-          find . -name "*.proto" -exec cp --parents {} main/
+          find . -name "*.proto" -exec cp --parents {} main \;
 
-      - name: Check for breaking changes
+      - name: Run proto compatibility check script
         run: |
-          buf breaking --against ./main
+          python validate_removed_fields_reserved.py
+
+      - name: Show success message
+        if: success()
+        run: echo "✅ Proto compatibility check passed!"
