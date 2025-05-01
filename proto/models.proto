@@ -4,7 +4,7 @@ package models;
 
 
 message Context {
-    string value1 = 1;
+    int32 value1 = 1;
     reserved 2, 3;
     repeated int32 v = 4;
     reserved "con", "value2";
