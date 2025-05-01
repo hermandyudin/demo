@@ -22,15 +22,18 @@ def parse_proto_dir(path):
                     messages.setdefault(msg_name, {})
 
                     for line in msg_body.splitlines():
-                        field_match = re.search(r'\s*(\w+)\s+(\w+)\s*=\s*(\d+);', line)
+                        # Match fields: <type> <name> = <number>;
+                        field_match = re.search(r'\s*(\w+(?:<[^>]+>)?)\s+(\w+)\s*=\s*(\d+);', line)
                         if field_match:
                             ftype, fname, fnum = field_match.groups()
                             messages[msg_name][fname] = (int(fnum), ftype)
 
+                        # Match reserved numbers
                         for match in re.findall(r'reserved\s+([0-9,\s]+);', line):
                             nums = [int(n.strip()) for n in match.split(',') if n.strip()]
                             reserved_nums[msg_name].update(nums)
 
+                        # Match reserved names
                         for match in re.findall(r'reserved\s+((?:"[^"]+",?\s*)+);', line):
                             names = re.findall(r'"([^"]+)"', match)
                             reserved_names[msg_name].update(names)
@@ -59,20 +62,23 @@ curr_msgs, curr_enums, curr_reserved_nums, curr_reserved_names = parse_proto_dir
 
 errors = []
 
-# Compare messages
+# Check messages
 for msg, fields in prev_msgs.items():
     curr_fields = curr_msgs.get(msg, {})
+
     for fname, (fnum, ftype) in fields.items():
         if fname not in curr_fields:
+            # Field removed — must be reserved
             if fnum not in curr_reserved_nums.get(msg, set()) or fname not in curr_reserved_names.get(msg, set()):
                 errors.append(f'Message "{msg}" - removed field "{fname}" (#{fnum}) not reserved.')
         else:
             curr_fnum, curr_ftype = curr_fields[fname]
-            if fnum != curr_fnum or ftype != curr_ftype:
-                errors.append(
-                    f'Message "{msg}" - field "{fname}" changed from type "{ftype}" #{fnum} to "{curr_ftype}" #{curr_fnum}.')
+            if fnum != curr_fnum:
+                errors.append(f'Message "{msg}" - field "{fname}" changed number from {fnum} to {curr_fnum}.')
+            if ftype != curr_ftype:
+                errors.append(f'Message "{msg}" - field "{fname}" changed type from "{ftype}" to "{curr_ftype}".')
 
-# Compare enums
+# Check enums
 for enum, values in prev_enums.items():
     curr_values = curr_enums.get(enum, {})
     for name, num in values.items():
@@ -83,7 +89,7 @@ for enum, values in prev_enums.items():
             if curr_values[name] != num:
                 errors.append(f'Enum "{enum}" - value "{name}" changed number from {num} to {curr_values[name]}.')
 
-# Output result
+# Output results
 if errors:
     for e in errors:
         print("❌ " + e)
