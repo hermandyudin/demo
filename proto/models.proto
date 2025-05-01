@@ -4,8 +4,9 @@ package models;
 
 
 message Context {
-    int32 value1 = 1;
+    string value1 = 1;
     string value2 = 2;
+    string con = 3;
     repeated int32 v = 4;
 }
 
@@ -15,7 +16,7 @@ message ModelARequest {
 }
 
 message ModelAResponse {
-    int32 reply = 1;
+    string reply = 1;
 }
 
 message ModelBRequest {
