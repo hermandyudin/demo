@@ -126,6 +126,33 @@ def generate_model_paths(model_name, request_schema_ref, response_schema_ref):
                                 "schema": {"type": "string", "format": "binary"}
                             }
                         }
+                    },
+                    "202": {
+                        "description": "Task is still in progress",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "task_id": {"type": "string"},
+                                        "status": {"type": "string"}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Task not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "detail": {"type": "string"}
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [{"BearerAuth": []}]

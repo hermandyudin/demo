@@ -5,6 +5,7 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, Response, Request, Security
 from fastapi.openapi.utils import get_openapi
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from jose import jwt, JWTError
 from contextlib import asynccontextmanager
@@ -186,11 +187,15 @@ class ModelAPIService:
                               user_id: str = Security(get_current_user)):
         full_task_id = f"{user_id}:{task_id}"
         data = await self.redis.get(full_task_id)
+
         if not data:
-            return {"task_id": task_id, "status": "not_found"}
+            raise HTTPException(status_code=404, detail="Task not found")
 
         if data == b"in_progress":
-            return {"task_id": task_id, "status": "in_progress"}, 202
+            return JSONResponse(
+                status_code=202,
+                content={"task_id": task_id, "status": "in_progress"}
+            )
 
         descriptor = self.get_descriptor(model_name, "response")
         message = bytes_to_protobuf(descriptor, data)
