@@ -174,6 +174,7 @@ class ModelAPIService:
         task.task_id = f"{user_id}:{task_uid}"
         task.request = message.SerializeToString()
 
+        await self.redis.set(task.task_id, b"in_progress")
         await self.rabbitmq_channel.default_exchange.publish(
             Message(body=task.SerializeToString()),
             routing_key=model_name
@@ -187,6 +188,9 @@ class ModelAPIService:
         data = await self.redis.get(full_task_id)
         if not data:
             return {"task_id": task_id, "status": "not_found"}
+
+        if data == b"in_progress":
+            return {"task_id": task_id, "status": "in_progress"}, 202
 
         descriptor = self.get_descriptor(model_name, "response")
         message = bytes_to_protobuf(descriptor, data)
