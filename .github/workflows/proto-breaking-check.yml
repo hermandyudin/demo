@@ -1,46 +1,30 @@
-name: Proto Compatibility Check
+name: Check Protobuf Compatibility
 
 on:
   pull_request:
     paths:
       - '**/*.proto'
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.proto'
 
 jobs:
-  proto-breaking-check:
+  buf-breaking:
+    name: Check Breaking Changes
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout current branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # required for `buf` to diff against master
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Set up Buf CLI
+      - name: Set up buf
         uses: bufbuild/buf-setup-action@v1
+
+      - name: Check for breaking changes
+        uses: bufbuild/buf-breaking-action@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Copy current version of .proto files
-        run: |
-          mkdir -p current
-          find . -name "*.proto" -exec cp --parents {} current \;
-
-      - name: Get proto files from master
-        run: |
-          git fetch origin master
-          git checkout origin/master -- .
-          mkdir -p master
-          find . -name "*.proto" -exec cp --parents {} master \;
-
-      - name: Run proto compatibility check script
-        run: |
-          python .github/scripts/validate_removed_fields_reserved.py
-
-      - name: Show success message
-        if: success()
-        run: echo "✅ Proto compatibility check passed!"
+          against: "https://github.com/${{ github.repository }}.git#branch=master"
