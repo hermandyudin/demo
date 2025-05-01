@@ -5,9 +5,8 @@ package models;
 
 message Context {
     int32 value1 = 1;
-    reserved 2, 3;
+    string value2 = 2;
     repeated int32 v = 4;
-    reserved "con", "value2";
 }
 
 message ModelARequest {
