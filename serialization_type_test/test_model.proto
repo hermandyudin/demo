@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+message DataMessage {
+  repeated int32 int32s = 1;
+  repeated int64 int64s = 2;
+  repeated float floats = 3;
+  repeated double doubles = 4;
+  repeated string strings = 5;
+}
