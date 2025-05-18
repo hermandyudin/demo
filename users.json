@@ -4,5 +4,8 @@
   },
   "duduk2": {
     "hashed_password": "$2b$12$lvqzJc.iy0a567Znv45KpeCM4pDNIIpOtTjW9yUYuORD6OGE5KDpm"
+  },
+  "testuser": {
+    "hashed_password": "$2b$12$OXVd/nsQDCrXOR/OtkDXz.sWL9A/Xtpt/.6QtYW2sz5iOZVb86LgW"
   }
 }
