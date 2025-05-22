@@ -1,0 +1,19 @@
+{
+  "model_registry": {
+    "host": "localhost",
+    "port": 9000
+  },
+  "rabbitmq": {
+        "host": "localhost",
+        "port": 5672
+    },
+  "redis": {
+    "host": "localhost",
+    "port": 6379
+  },
+  "jwt": {
+    "secret_key": "1ff342b24c5a445288b64a399371dbe86f24937c4fd26745c89dfe16bf1c2089eaa978aa51708111418a2a4d80de5ceea93476f720c4a5a68683ffa556f752a5",
+    "algorithm": "HS256"
+  },
+  "refresh_interval": 60
+}
