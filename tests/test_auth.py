@@ -9,6 +9,9 @@ app = api_service.app
 async def test_register_and_login():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        await ac.post("/register", json={"username": "testuser", "password": "test"})
-        response = await ac.post("/login", json={"username": "testuser", "password": "test"})
-        assert response.status_code == 200
+        reg_resp = await ac.post("/register", json={"username": "testuser", "password": "test"})
+        print("Register status:", reg_resp.status_code, reg_resp.text)
+
+        login_resp = await ac.post("/login", json={"username": "testuser", "password": "test"})
+        print("Login status:", login_resp.status_code, login_resp.text)
+        assert login_resp.status_code == 200
