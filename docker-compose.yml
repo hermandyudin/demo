@@ -1,0 +1,55 @@
+version: '3.9'
+
+services:
+  api_service:
+    build:
+      context: .
+    command: python api_service.py
+    ports:
+      - "8000:8000"
+    environment:
+      - CONFIG_PATH=config.json
+    depends_on:
+      - model_registry
+      - model_a
+      - model_b
+      - rabbitmq
+      - redis
+
+  model_registry:
+    build:
+      context: .
+    command: python model_registry.py
+    ports:
+      - "8001:8000"
+    environment:
+      - CONFIG_PATH=config.json
+
+  model_a:
+    build:
+      context: .
+    command: python model_a.py
+    ports:
+      - "8002:8000"
+    environment:
+      - CONFIG_PATH=config.json
+
+  model_b:
+    build:
+      context: .
+    command: python model_b.py
+    ports:
+      - "8003:8000"
+    environment:
+      - CONFIG_PATH=config.json
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # RabbitMQ UI
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"

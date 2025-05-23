@@ -17,7 +17,8 @@ import os
 import json
 
 # Load config
-with open("config.json") as f:
+config_path = os.environ.get("CONFIG_PATH", "config.json")
+with open(config_path) as f:
     config = json.load(f)
 
 # JWT and Security

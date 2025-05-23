@@ -15,8 +15,8 @@ import models_pb2
 
 
 class BaseModel(ABC):
-    def __init__(self, config_path: str, model_name: str, port: int):
-        self.config = self._load_config(config_path)
+    def __init__(self, model_name: str, port: int):
+        self.config = self._load_config(os.environ.get("CONFIG_PATH", "config.json"))
         self.model_name = model_name
         self.port = port
         self.host = self._get_host_ip()
