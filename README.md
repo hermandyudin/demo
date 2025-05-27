@@ -12,6 +12,19 @@ This project demonstrates a simple modular microservices architecture for servin
 
 ## Architecture
 
+```mermaid
+graph TD
+    Client --> API_Service
+    API_Service --> Model_Registry
+    Model_Registry --> Model_A
+    Model_Registry --> Model_B
+    Model_A -->|↘️| Queue[(RabbitMQ / Redis)]
+    Model_B -->|↘️| Queue[(RabbitMQ / Redis)]
+
+    classDef model fill:#f9f,stroke:#333,stroke-width:1px;
+    class Model_A,Model_B model;
+```
+
 Client → API Service → Model Registry → [Model A / Model B] \
 $~~~~~~~~~~~~~~~~~~~~~~~$↘ RabbitMQ / Redis
 
