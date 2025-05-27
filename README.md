@@ -18,17 +18,13 @@ graph TD
     API_Service -->|Gets active models list and gets their i/o messages| Model_Registry
     API_Service -->|Puts new tasks to particular queue| RabbitMQ[RabbitMQ]
     API_Service -->|Gets result of the task from db| Redis[Redis]
-    Model_A -->|Registers itself| Model_Registry
-    Model_B -->|Registers itself| Model_Registry
-    Model_Registry -->|Monitors if model is alive| Model_A
-    Model_Registry -->|Monitors if model is alive| Model_B
-    Model_A -->|Puts result of the task| Redis
-    Model_A -->|Listens to queue and takes tasks| RabbitMQ
-    Model_B -->|Puts result of the task| Redis
-    Model_B -->|Listens to queue and takes tasks| RabbitMQ
+    Any_Model -->|Registers itself| Model_Registry
+    Model_Registry -->|Monitors if model is alive| Any_Model
+    Any_Model -->|Puts result of the task| Redis
+    Any_Model -->|Listens to queue and takes tasks| RabbitMQ
 
     classDef model fill:#f9f,stroke:#333,stroke-width:1px;
-    class Model_A,Model_B model;
+    class Any_Model model;
 ```
 
 Client → API Service → Model Registry → [Model A / Model B] \
