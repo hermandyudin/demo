@@ -16,16 +16,16 @@ This project demonstrates a simple modular microservices architecture for servin
 graph TD
     Client -->|Interacts with API| API_Service
     API_Service -->|Gets active models list and gets their i/o messages| Model_Registry
-    API_Service -->|Puts new tasks to particular queue|  Queue[RabbitMQ]
-    API_Service -->|Gets result of the task from db|  Queue[Redis]
+    API_Service -->|Puts new tasks to particular queue| RabbitMQ[RabbitMQ]
+    API_Service -->|Gets result of the task from db| Redis[Redis]
     Model_A -->|Registers itself| Model_Registry
     Model_B -->|Registers itself| Model_Registry
     Model_Registry -->|Monitors if model is alive| Model_A
     Model_Registry -->|Monitors if model is alive| Model_B
-    Model_A -->|Puts result of the task| Queue[Redis]
-    Model_A -->|Listens to queue and takes tasks| Queue[RabbitMQ]
-    Model_B -->|Puts result of the task| Queue[Redis]
-    Model_B -->|Listens to queue and takes tasks| Queue[RabbitMQ]
+    Model_A -->|Puts result of the task| Redis
+    Model_A -->|Listens to queue and takes tasks| RabbitMQ
+    Model_B -->|Puts result of the task| Redis
+    Model_B -->|Listens to queue and takes tasks| RabbitMQ
 
     classDef model fill:#f9f,stroke:#333,stroke-width:1px;
     class Model_A,Model_B model;
