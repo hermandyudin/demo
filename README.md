@@ -14,12 +14,18 @@ This project demonstrates a simple modular microservices architecture for servin
 
 ```mermaid
 graph TD
-    Client --> API_Service
-    API_Service --> Model_Registry
-    Model_Registry --> Model_A
-    Model_Registry --> Model_B
-    Model_A -->|↘️| Queue[(RabbitMQ / Redis)]
-    Model_B -->|↘️| Queue[(RabbitMQ / Redis)]
+    Client -->|Interacts with API| API_Service
+    API_Service -->|Gets active models list and gets their i/o messages| Model_Registry
+    API_Service -->|Puts new tasks to particular queue|  Queue[RabbitMQ]
+    API_Service -->|Gets result of the task from db|  Queue[Redis]
+    Model_A -->|Registers itself| Model_Registry
+    Model_B -->|Registers itself| Model_Registry
+    Model_Registry -->|Monitors if model is alive| Model_A
+    Model_Registry -->|Monitors if model is alive| Model_B
+    Model_A -->|Puts result of the task| Queue[Redis]
+    Model_A -->|Listens to queue and takes tasks| Queue[RabbitMQ]
+    Model_B -->|Puts result of the task| Queue[Redis]
+    Model_B -->|Listens to queue and takes tasks| Queue[RabbitMQ]
 
     classDef model fill:#f9f,stroke:#333,stroke-width:1px;
     class Model_A,Model_B model;
