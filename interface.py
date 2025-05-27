@@ -7,11 +7,17 @@ from abc import ABC, abstractmethod
 
 import redis.asyncio as aioredis
 import requests
+import os
 from aio_pika import connect_robust, IncomingMessage
 from fastapi import FastAPI, Request, Response
 from google.protobuf import descriptor_pb2
 
 import models_pb2
+
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger()
 
 
 class BaseModel(ABC):
@@ -49,10 +55,10 @@ class BaseModel(ABC):
             try:
                 await self.queue_task
             except asyncio.CancelledError:
-                print("[*] RabbitMQ listener stopped.")
+                logger.info("[*] RabbitMQ listener stopped.")
         if self.redis:
             await self.redis.close()
-            print("[*] Redis connection closed.")
+            logger.info("[*] Redis connection closed.")
 
     # -------------------- HTTP Endpoints --------------------
     def _ping(self):
@@ -92,39 +98,39 @@ class BaseModel(ABC):
 
     # -------------------- Redis & RabbitMQ --------------------
     async def _connect_redis(self):
-        print("[*] Connecting to Redis...")
+        logger.info("[*] Connecting to Redis...")
         self.redis = await aioredis.from_url(
             f"redis://{self.config['redis']['host']}:{self.config['redis']['port']}"
         )
-        print("[*] Redis connected.")
+        logger.info("[*] Redis connected.")
 
     async def _listen_to_rabbitmq(self):
-        print("[*] Connecting to RabbitMQ...")
+        logger.info("[*] Connecting to RabbitMQ...")
         rabbitmq_host = self.config["rabbitmq"]["host"]
         connection = await connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
         channel = await connection.channel()
         queue = await channel.declare_queue(self.model_name)
 
-        print(f"[*] Listening to queue: {self.model_name}")
+        logger.info(f"[*] Listening to queue: {self.model_name}")
         async for message in queue:
             await self._handle_message(message)
 
     async def _handle_message(self, message: IncomingMessage):
         async with message.process():
-            print(f"[*] Processing task for model: {self.model_name}")
+            logger.info(f"[*] Processing task for model: {self.model_name}")
             task = models_pb2.Task()
             task.ParseFromString(message.body)
-            print(f"Task ID: {task.task_id}")
+            logger.info(f"Task ID: {task.task_id}")
 
             result = await self.process_request(task.request)
             task_id = task.task_id
             if ":" not in task_id:
-                print("[!] Task ID does not contain user_id. Possible misconfiguration.")
+                logger.warning("[!] Task ID does not contain user_id. Possible misconfiguration.")
             else:
                 pass
 
             await self.redis.set(task_id, result.SerializeToString())
-            print(f"[*] Stored result in Redis with key: {task.task_id}")
+            logger.info(f"[*] Stored result in Redis with key: {task.task_id}")
 
     # -------------------- Registry --------------------
     def _register_with_registry(self):
@@ -135,9 +141,9 @@ class BaseModel(ABC):
                 f"http://{host}:{port}/register",
                 params={"model_name": self.model_name, "host": self.host, "port": self.port}
             )
-            print(f"[*] Registered with registry: {response.json()}")
+            logger.info(f"[*] Registered with registry: {response.json()}")
         except requests.RequestException as e:
-            print(f"[!] Failed to register: {e}")
+            logger.error(f"[!] Failed to register: {e}")
 
     def _unregister_from_registry(self):
         host = self.config["model_registry"]["host"]
@@ -147,11 +153,11 @@ class BaseModel(ABC):
                 f"http://{host}:{port}/unregister",
                 params={"model_name": self.model_name}
             )
-            print(f"[*] Unregistered from registry: {response.json()}")
+            logger.info(f"[*] Unregistered from registry: {response.json()}")
         except requests.ConnectionError:
-            print("[!] Registry unavailable, will unregister later.")
+            logger.warning("[!] Registry unavailable, will unregister later.")
         except requests.RequestException as e:
-            print(f"[!] Unregister failed: {e}")
+            logger.error(f"[!] Unregister failed: {e}")
 
     # -------------------- Utils --------------------
     def _load_config(self, file_path: str):

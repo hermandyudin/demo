@@ -16,6 +16,11 @@ from passlib.context import CryptContext
 import os
 import json
 
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger()
+
 # Load config
 config_path = os.environ.get("CONFIG_PATH", "config.json")
 with open(config_path) as f:
@@ -143,7 +148,7 @@ class ModelAPIService:
             response = requests.get(registry_url)
             self.models = response.json()
         except requests.RequestException as e:
-            print(f"Failed to fetch models from registry: {e}")
+            logger.error(f"Failed to fetch models from registry: {e}")
             self.models = {}
 
     # ======================
@@ -263,7 +268,7 @@ class ModelAPIService:
                     "response": res_desc
                 }
             except requests.exceptions.RequestException as e:
-                print(f"Failed to fetch schema for {model_name}: {e}")
+                logger.error(f"Failed to fetch schema for {model_name}: {e}")
 
         self.descriptors_cache = descriptors
         return descriptors
