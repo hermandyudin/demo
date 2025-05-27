@@ -27,9 +27,6 @@ graph TD
     class Any_Model model;
 ```
 
-Client → API Service → Model Registry → [Model A / Model B] \
-$~~~~~~~~~~~~~~~~~~~~~~~$↘ RabbitMQ / Redis
-
 Each model is isolated and can be scaled or extended independently.
 
 ## Components
