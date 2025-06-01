@@ -1,7 +1,8 @@
+import asyncio
+
 from interface import BaseModel
 import models_pb2
 import uvicorn
-import time
 
 
 class ModelB(BaseModel):
@@ -10,7 +11,7 @@ class ModelB(BaseModel):
         model_b_request.ParseFromString(body)
         response_obj = models_pb2.ModelBResponse()
         response_obj.status = f"Stored value: {model_b_request.value}"
-        time.sleep(30)
+        await asyncio.sleep(30)
         return response_obj
 
     def get_request_format(self):

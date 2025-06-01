@@ -1,7 +1,6 @@
-import pytest
-from openapi_utils import (
+from utils.openapi_utils import (
     inject_static_schemas, generate_openapi_schema, generate_model_paths,
-    fill_defaults_from_descriptor, make_message_class
+    fill_defaults_from_descriptor
 )
 from google.protobuf import descriptor_pb2
 

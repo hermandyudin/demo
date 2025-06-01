@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from jose import jwt, JWTError
 from contextlib import asynccontextmanager
 from aio_pika import connect_robust, Message
-from openapi_utils import *
+from utils.openapi_utils import *
 import models_pb2
 from passlib.context import CryptContext
 import os
