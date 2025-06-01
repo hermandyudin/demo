@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from jose import jwt, JWTError
 from contextlib import asynccontextmanager
 from aio_pika import connect_robust, Message
+import aio_pika
 from utils.openapi_utils import *
 import models_pb2
 from passlib.context import CryptContext
@@ -124,8 +125,16 @@ class ModelAPIService:
 
     async def connect_rabbitmq(self):
         rabbitmq_host = config['rabbitmq']['host']
-        connection = await connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
-        self.rabbitmq_channel = await connection.channel()
+        retries = 10
+        for i in range(retries):
+            try:
+                connection = await connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
+                self.rabbitmq_channel = await connection.channel()
+                return
+            except aio_pika.exceptions.AMQPConnectionError as e:
+                logger.warning(f"RabbitMQ connection attempt {i + 1} failed: {e}")
+                await asyncio.sleep(2)
+        raise RuntimeError("Could not connect to RabbitMQ after several attempts")
 
     async def close_rabbitmq(self):
         if self.rabbitmq_channel:

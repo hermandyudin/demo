@@ -9,6 +9,7 @@ import redis.asyncio as aioredis
 import requests
 import os
 from aio_pika import connect_robust, IncomingMessage
+import aio_pika
 from fastapi import FastAPI, Request, Response
 from google.protobuf import descriptor_pb2
 
@@ -104,10 +105,22 @@ class BaseModel(ABC):
         )
         logger.info("[*] Redis connected.")
 
+    async def connect_rabbitmq(self):
+        rabbitmq_host = self.config['rabbitmq']['host']
+        retries = 10
+        for i in range(retries):
+            try:
+                connection = await connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
+                self.rabbitmq_channel = await connection.channel()
+                return connection
+            except aio_pika.exceptions.AMQPConnectionError as e:
+                logger.warning(f"RabbitMQ connection attempt {i + 1} failed: {e}")
+                await asyncio.sleep(2)
+        raise RuntimeError("Could not connect to RabbitMQ after several attempts")
+
     async def _listen_to_rabbitmq(self):
         logger.info("[*] Connecting to RabbitMQ...")
-        rabbitmq_host = self.config["rabbitmq"]["host"]
-        connection = await connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
+        connection = await self.connect_rabbitmq()
         channel = await connection.channel()
         queue = await channel.declare_queue(self.model_name)
 
