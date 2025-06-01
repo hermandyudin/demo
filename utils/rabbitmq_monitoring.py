@@ -1,18 +1,27 @@
+import json
+import os
+
 import requests
 from prometheus_client import Gauge
 
 import logging
 
+# Load config
+config_path = os.environ.get("CONFIG_PATH", "config.json")
+with open(config_path) as f:
+    config = json.load(f)
+
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger()
 
 # Replace with your actual RabbitMQ settings
-RABBITMQ_API_URL = "http://localhost:15672/api/queues"
-RABBITMQ_USER = "guest"
-RABBITMQ_PASS = "guest"
+RABBITMQ_API_URL = f"http://{config['rabbitmq']['host']}:{config['rabbitmq']['port']}/api/queues"
+RABBITMQ_USER = config['rabbitmq']['user']
+RABBITMQ_PASS = config['rabbitmq']['password']
 
 # Prometheus metric
 QUEUE_SIZE_METRIC = Gauge("rabbitmq_queue_size", "Queue size from RabbitMQ", ["queue"])
+
 
 def fetch_queue_sizes():
     try:
