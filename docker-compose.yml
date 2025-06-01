@@ -4,6 +4,9 @@ services:
   model_registry:
     build: .
     command: python model_registry.py
+    depends_on:
+      - rabbitmq
+      - prometheus
     ports:
       - "9000:9000"
     networks:
@@ -14,6 +17,8 @@ services:
     command: python api_service.py
     depends_on:
       - model_registry
+      - rabbitmq
+      - redis
     ports:
       - "8000:8000"
     networks:
@@ -21,17 +26,21 @@ services:
 
   model_a:
     build: .
-    command: python models/model_a.py
+    command: python -m models.model_a
     depends_on:
       - model_registry
+      - redis
+      - rabbitmq
     networks:
       - backend
 
   model_b:
     build: .
-    command: python models/model_b.py
+    command: python -m models.model_b
     depends_on:
       - model_registry
+      - redis
+      - rabbitmq
     networks:
       - backend
 
