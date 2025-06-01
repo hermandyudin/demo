@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger()
 
 # Replace with your actual RabbitMQ settings
-RABBITMQ_API_URL = f"http://{config['rabbitmq']['host']}:{config['rabbitmq']['port']}/api/queues"
+RABBITMQ_API_URL = f"http://{config['rabbitmq']['host']}:{config['rabbitmq']['management_port']}/api/queues"
 RABBITMQ_USER = config['rabbitmq']['user']
 RABBITMQ_PASS = config['rabbitmq']['password']
 

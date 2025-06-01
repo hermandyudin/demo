@@ -1,16 +1,17 @@
 {
   "model_registry": {
-    "host": "localhost",
+    "host": "model_registry",
     "port": 9000
   },
   "rabbitmq": {
-    "host": "localhost",
+    "host": "rabbitmq",
     "port": 5672,
+    "management_port": 15672,
     "user": "guest",
     "password": "guest"
   },
   "redis": {
-    "host": "localhost",
+    "host": "redis",
     "port": 6379
   },
   "jwt": {

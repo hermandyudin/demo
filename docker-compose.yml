@@ -1,55 +1,73 @@
-version: '3.9'
+version: '3.8'
 
 services:
-  api_service:
-    build:
-      context: .
-    command: python api_service.py
-    ports:
-      - "8000:8000"
-    environment:
-      - CONFIG_PATH=config.json
-    depends_on:
-      - model_registry
-      - model_a
-      - model_b
-      - rabbitmq
-      - redis
-
   model_registry:
-    build:
-      context: .
+    build: .
     command: python model_registry.py
     ports:
-      - "8001:8000"
-    environment:
-      - CONFIG_PATH=config.json
+      - "9000:9000"
+    networks:
+      - backend
+
+  gateway:
+    build: .
+    command: python api_service.py
+    depends_on:
+      - model_registry
+    ports:
+      - "8000:8000"
+    networks:
+      - backend
 
   model_a:
-    build:
-      context: .
-    command: python model_a.py
-    ports:
-      - "8002:8000"
-    environment:
-      - CONFIG_PATH=config.json
+    build: .
+    command: python models/model_a.py
+    depends_on:
+      - model_registry
+    networks:
+      - backend
 
   model_b:
-    build:
-      context: .
-    command: python model_b.py
-    ports:
-      - "8003:8000"
-    environment:
-      - CONFIG_PATH=config.json
+    build: .
+    command: python models/model_b.py
+    depends_on:
+      - model_registry
+    networks:
+      - backend
 
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - "5672:5672"      # AMQP
-      - "15672:15672"    # RabbitMQ UI
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - backend
 
   redis:
-    image: redis:7
+    image: redis:alpine
     ports:
       - "6379:6379"
+    networks:
+      - backend
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - backend
+
+networks:
+  backend:

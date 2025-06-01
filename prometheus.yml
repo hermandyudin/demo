@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: 'model_registry'
+    static_configs:
+      - targets: [ 'model_registry:9000' ]
