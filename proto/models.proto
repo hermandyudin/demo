@@ -27,6 +27,20 @@ message ModelBResponse {
     string status = 1;
 }
 
+message ExampleModelRequest {
+   File file = 1;
+   string author = 2;
+}
+
+message ExampleModelResponse {
+   string summary = 1;
+   string fixed_author = 2;
+}
+
+message File {
+   bytes content = 1;
+}
+
 message Task {
    string task_id = 1;
    bytes request = 2;
