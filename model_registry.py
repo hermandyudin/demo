@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 import json
 import os
 import requests
@@ -6,7 +7,11 @@ import time
 import threading
 from prometheus_client import Gauge, generate_latest, CONTENT_TYPE_LATEST
 from utils.rabbitmq_monitoring import fetch_queue_sizes
-from fastapi.responses import Response
+
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger()
 
 REGISTRY_FILE = "models_registry.json"
 
@@ -27,7 +32,7 @@ else:
 
 def save_registry():
     with open(REGISTRY_FILE, "w") as f:
-        json.dump(models, f)
+        json.dump(models, f, indent=2)
 
 
 def update_metrics():
@@ -44,20 +49,40 @@ def get_models():
 
 @app.post("/register")
 def register_model(model_name: str, host: str, port: int):
-    models[model_name] = {"host": host, "port": port, "last_ping": time.time()}
+    instance = {"host": host, "port": port, "last_ping": time.time()}
+
+    if model_name not in models:
+        models[model_name] = {"instances": [instance]}
+    else:
+        instances = models[model_name]["instances"]
+        # Avoid duplicates
+        if not any(inst["host"] == host and inst["port"] == port for inst in instances):
+            instances.append(instance)
+
+    logger.info(
+        f"Registered new instance for {model_name}. Host {host}, port ${port}. Now it has {len(models[model_name]['instances'])} instances")
     save_registry()
     update_metrics()
-    return {"message": f"Model {model_name} registered successfully."}
+    return {"message": f"Model {model_name} registered with instance {host}:{port}"}
 
 
 @app.post("/unregister")
-def unregister_model(model_name: str):
-    if model_name in models:
+def unregister_model(model_name: str, host: str, port: int):
+    if model_name not in models:
+        raise HTTPException(status_code=404, detail="Model not found.")
+
+    instances = models[model_name]["instances"]
+    filtered = [inst for inst in instances if not (inst["host"] == host and inst["port"] == port)]
+    if filtered:
+        models[model_name]["instances"] = filtered
+    else:
         del models[model_name]
-        save_registry()
-        update_metrics()
-        return {"message": f"Model {model_name} removed from registry."}
-    raise HTTPException(status_code=404, detail="Model not found.")
+
+    logger.info(
+        f"Unregistered instance for {model_name}. Host {host}, port {port}. Now it has {len(models[model_name]['instances'])} instances")
+    save_registry()
+    update_metrics()
+    return {"message": f"Unregistered instance {host}:{port} from model {model_name}"}
 
 
 @app.get("/metrics")
@@ -68,18 +93,30 @@ def metrics():
 def health_check():
     while True:
         time.sleep(10)
+        models_changed = False
+
         for model_name in list(models.keys()):
-            host, port = models[model_name]["host"], models[model_name]["port"]
-            try:
-                response = requests.get(f"http://{host}:{port}/ping", timeout=3)
-                if response.status_code == 200:
-                    models[model_name]["last_ping"] = time.time()
-                else:
-                    unregister_model(model_name)
-            except requests.exceptions.RequestException:
-                unregister_model(model_name)
-        save_registry()
-        update_metrics()
+            active_instances = []
+            for inst in models[model_name]["instances"]:
+                url = f"http://{inst['host']}:{inst['port']}/ping"
+                logger.info(f"Pinging instance of {model_name}, host: {inst['host']}, port: {inst['port']}")
+                try:
+                    response = requests.get(url, timeout=3)
+                    if response.status_code == 200:
+                        inst["last_ping"] = time.time()
+                        active_instances.append(inst)
+                except requests.RequestException:
+                    pass  # Instance is considered down
+
+            if active_instances:
+                models[model_name]["instances"] = active_instances
+            else:
+                del models[model_name]
+            models_changed = True
+
+        if models_changed:
+            save_registry()
+            update_metrics()
 
 
 def queue_monitor():

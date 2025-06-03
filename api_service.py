@@ -266,8 +266,11 @@ class ModelAPIService:
         models = self.get_active_models()
         for model_name, model_info in models.items():
             try:
-                req_desc_resp = requests.get(f"http://{model_info['host']}:{model_info['port']}/get_request_format")
-                res_desc_resp = requests.get(f"http://{model_info['host']}:{model_info['port']}/get_response_format")
+                instance_info = model_info['instances'][0]
+                req_desc_resp = requests.get(
+                    f"http://{instance_info['host']}:{instance_info['port']}/get_request_format")
+                res_desc_resp = requests.get(
+                    f"http://{instance_info['host']}:{instance_info['port']}/get_response_format")
 
                 req_desc = parse_descriptor(req_desc_resp.content)
                 res_desc = parse_descriptor(res_desc_resp.content)

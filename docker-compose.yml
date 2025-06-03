@@ -48,6 +48,18 @@ services:
     networks:
       - backend
 
+  model_b_2:
+    build: .
+    command: python -m models.model_b_2
+    depends_on:
+      - model_registry
+      - redis
+      - rabbitmq
+    ports:
+      - "8004:8004"
+    networks:
+      - backend
+
   model_example:
     build: .
     command: python -m models.example_model.implemented_interface
