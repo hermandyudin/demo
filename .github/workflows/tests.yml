@@ -36,7 +36,9 @@ jobs:
         pip install pytest httpx pytest-asyncio
 
     - name: Gen proto models
-      run: python -m grpc_tools.protoc   -I proto   --python_out=.   --grpc_python_out=.   proto/models.proto
+      run: | 
+        python -m grpc_tools.protoc   -I proto   --python_out=.   --grpc_python_out=.   proto/models.proto
+        python -m grpc_tools.protoc   -I proto   --python_out=.   --grpc_python_out=.   tests/example.proto
 
     - name: Run tests
       run: pytest tests
