@@ -4,7 +4,6 @@ import base64
 import json
 import socket
 from abc import ABC, abstractmethod
-
 import redis.asyncio as aioredis
 import requests
 import os
@@ -28,9 +27,8 @@ class BaseModel(ABC):
         self.port = port
         self.host = self._get_host_ip()
 
-        self.app = FastAPI(lifespan=self.lifespan)
+        self.app = FastAPI()
         self.redis = None
-        self.queue_task = None
 
         self._setup_routes()
         self._register_with_registry()
@@ -43,23 +41,6 @@ class BaseModel(ABC):
         self.app.post("/task")(self._handle_task)
         self.app.get("/get_request_format")(self._get_request_format)
         self.app.get("/get_response_format")(self._get_response_format)
-
-    async def lifespan(self, app: FastAPI):
-        await self._connect_redis()
-        self.queue_task = asyncio.create_task(self._listen_to_rabbitmq())
-        yield
-        await self._shutdown()
-
-    async def _shutdown(self):
-        if self.queue_task:
-            self.queue_task.cancel()
-            try:
-                await self.queue_task
-            except asyncio.CancelledError:
-                logger.info("[*] RabbitMQ listener stopped.")
-        if self.redis:
-            await self.redis.close()
-            logger.info("[*] Redis connection closed.")
 
     # -------------------- HTTP Endpoints --------------------
     def _ping(self):
@@ -99,11 +80,12 @@ class BaseModel(ABC):
 
     # -------------------- Redis & RabbitMQ --------------------
     async def _connect_redis(self):
-        logger.info("[*] Connecting to Redis...")
-        self.redis = await aioredis.from_url(
-            f"redis://{self.config['redis']['host']}:{self.config['redis']['port']}"
-        )
-        logger.info("[*] Redis connected.")
+        if self.redis is None:
+            logger.info("[*] Connecting to Redis...")
+            self.redis = await aioredis.from_url(
+                f"redis://{self.config['redis']['host']}:{self.config['redis']['port']}"
+            )
+            logger.info("[*] Redis connected.")
 
     async def connect_rabbitmq(self):
         rabbitmq_host = self.config['rabbitmq']['host']
@@ -139,8 +121,6 @@ class BaseModel(ABC):
             task_id = task.task_id
             if ":" not in task_id:
                 logger.warning("[!] Task ID does not contain user_id. Possible misconfiguration.")
-            else:
-                pass
 
             await self.redis.set(task_id, result.SerializeToString())
             logger.info(f"[*] Stored result in Redis with key: {task.task_id}")
@@ -183,15 +163,50 @@ class BaseModel(ABC):
         except Exception:
             return "127.0.0.1"
 
+    # -------------------- Multiprocessing Run --------------------
+    def run(self):
+        from multiprocessing import Process
+        import uvicorn
+
+        def run_api():
+            # Optionally connect Redis here if API needs it, or lazy connect on demand
+            uvicorn.run(self.app, host="0.0.0.0", port=self.port)
+
+        async def run_worker_async():
+            await self._connect_redis()
+            await self._listen_to_rabbitmq()
+
+        def run_worker():
+            asyncio.run(run_worker_async())
+
+        api_process = Process(target=run_api)
+        worker_process = Process(target=run_worker)
+
+        api_process.start()
+        worker_process.start()
+
+        api_process.join()
+        worker_process.join()
+
     # -------------------- Abstract Methods --------------------
     @abstractmethod
     async def process_request(self, body):
+        """
+        Implement this method to process incoming requests.
+        Must be async.
+        """
         pass
 
     @abstractmethod
     def get_request_format(self):
+        """
+        Return the protobuf descriptor for the request message.
+        """
         pass
 
     @abstractmethod
     def get_response_format(self):
+        """
+        Return the protobuf descriptor for the response message.
+        """
         pass

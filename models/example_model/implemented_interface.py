@@ -1,14 +1,14 @@
 from interface import BaseModel
 from transformers import pipeline
 import models_pb2
-import uvicorn
-import io
+import base64
+from io import BytesIO
 
 
 class ExampleModel(BaseModel):
 
     def summarize_text_file(self, file):
-        text = file.read()
+        text = file.read().decode("utf-8")
 
         if not text.strip():
             print("The file is empty.")
@@ -30,16 +30,16 @@ class ExampleModel(BaseModel):
         final_summary = " ".join(summaries)
         return final_summary.strip()
 
-    def get_file_from_bytes(self, file_bytes):
-        file_like = io.BytesIO(file_bytes)
-        return io.TextIOWrapper(file_like, encoding='utf-8')
+    def get_file_from_base64(self, file):
+        file_bytes = base64.b64decode(file.content)
+        return BytesIO(file_bytes)
 
     async def process_request(self, body):
         request = models_pb2.ExampleModelRequest()
         request.ParseFromString(body)
         response_obj = models_pb2.ExampleModelResponse()
 
-        file = self.get_file_from_bytes(request.file.content)
+        file = self.get_file_from_base64(request.file)
 
         summary = self.summarize_text_file(file)
 
@@ -55,4 +55,5 @@ class ExampleModel(BaseModel):
 
 
 if __name__ == "__main__":
-    uvicorn.run(ExampleModel("ExampleModel", 8003).app, host="0.0.0.0", port=8003)
+    model = ExampleModel("ExampleModel", 8003)
+    model.run()

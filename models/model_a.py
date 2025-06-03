@@ -19,4 +19,5 @@ class ModelA(BaseModel):
 
 
 if __name__ == "__main__":
-    uvicorn.run(ModelA("ModelA", 8000).app, host="0.0.0.0", port=8000)
+    model = ModelA("ModelA", 8000)
+    model.run()
