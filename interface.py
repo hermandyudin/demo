@@ -4,6 +4,7 @@ import base64
 import json
 import socket
 from abc import ABC, abstractmethod
+from typing import TypeVar, Generic, Type
 import redis.asyncio as aioredis
 import requests
 import os
@@ -11,6 +12,7 @@ from aio_pika import connect_robust, IncomingMessage
 import aio_pika
 from fastapi import FastAPI, Request, Response
 from google.protobuf import descriptor_pb2
+from google.protobuf.message import Message
 
 import models_pb2
 
@@ -19,8 +21,15 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger()
 
+# -------------------- Type Variables --------------------
+RequestType = TypeVar("RequestType", bound=Message)
+ResponseType = TypeVar("ResponseType", bound=Message)
 
-class BaseModel(ABC):
+
+class BaseModel(ABC, Generic[RequestType, ResponseType]):
+    request_cls: Type[RequestType]
+    response_cls: Type[ResponseType]
+
     def __init__(self, model_name: str, port: int):
         self.config = self._load_config(os.environ.get("CONFIG_PATH", "config.json"))
         self.model_name = model_name
@@ -169,7 +178,6 @@ class BaseModel(ABC):
         import uvicorn
 
         def run_api():
-            # Optionally connect Redis here if API needs it, or lazy connect on demand
             uvicorn.run(self.app, host="0.0.0.0", port=self.port)
 
         async def run_worker_async():
@@ -188,25 +196,18 @@ class BaseModel(ABC):
         api_process.join()
         worker_process.join()
 
-    # -------------------- Abstract Methods --------------------
+    # -------------------- Generic Descriptor Access --------------------
+    def get_request_format(self):
+        return self.request_cls.DESCRIPTOR
+
+    def get_response_format(self):
+        return self.response_cls.DESCRIPTOR
+
+    # -------------------- Abstract Method --------------------
     @abstractmethod
-    async def process_request(self, body):
+    async def process_request(self, body: bytes) -> ResponseType:
         """
         Implement this method to process incoming requests.
-        Must be async.
-        """
-        pass
-
-    @abstractmethod
-    def get_request_format(self):
-        """
-        Return the protobuf descriptor for the request message.
-        """
-        pass
-
-    @abstractmethod
-    def get_response_format(self):
-        """
-        Return the protobuf descriptor for the response message.
+        Must return a Protobuf message instance.
         """
         pass

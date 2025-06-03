@@ -1,21 +1,17 @@
 from interface import BaseModel
-import models_pb2
-import uvicorn
+from models_pb2 import ModelARequest, ModelAResponse
 
 
-class ModelA(BaseModel):
+class ModelA(BaseModel[ModelARequest, ModelAResponse]):
+    request_cls = ModelARequest
+    response_cls = ModelAResponse
+
     async def process_request(self, body):
-        model_a_request = models_pb2.ModelARequest()
+        model_a_request = self.request_cls()
         model_a_request.ParseFromString(body)  # Correct deserialization
-        response_obj = models_pb2.ModelAResponse()
+        response_obj = self.response_cls()
         response_obj.reply = f"Processed message: {model_a_request.messages}\n"
         return response_obj
-
-    def get_request_format(self):
-        return models_pb2.ModelARequest.DESCRIPTOR
-
-    def get_response_format(self):
-        return models_pb2.ModelAResponse.DESCRIPTOR
 
 
 if __name__ == "__main__":

@@ -1,24 +1,20 @@
 import asyncio
 
 from interface import BaseModel
-import models_pb2
-import uvicorn
+from models_pb2 import ModelBRequest, ModelBResponse
 
 
-class ModelB(BaseModel):
+class ModelB(BaseModel[ModelBRequest, ModelBResponse]):
+    request_cls = ModelBRequest
+    response_cls = ModelBResponse
+
     async def process_request(self, body):
-        model_b_request = models_pb2.ModelBRequest()
+        model_b_request = self.request_cls()
         model_b_request.ParseFromString(body)
-        response_obj = models_pb2.ModelBResponse()
+        response_obj = self.response_cls()
         response_obj.status = f"Stored value: {model_b_request.value}"
         await asyncio.sleep(30)
         return response_obj
-
-    def get_request_format(self):
-        return models_pb2.ModelBRequest.DESCRIPTOR
-
-    def get_response_format(self):
-        return models_pb2.ModelBResponse.DESCRIPTOR
 
 
 if __name__ == "__main__":

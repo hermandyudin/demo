@@ -1,11 +1,13 @@
 from interface import BaseModel
 from transformers import pipeline
-import models_pb2
+from models_pb2 import ExampleModelRequest, ExampleModelResponse
 import base64
 from io import BytesIO
 
 
-class ExampleModel(BaseModel):
+class ExampleModel(BaseModel[ExampleModelRequest, ExampleModelResponse]):
+    request_cls = ExampleModelRequest
+    response_cls = ExampleModelResponse
 
     def summarize_text_file(self, file):
         text = file.read().decode("utf-8")
@@ -35,9 +37,9 @@ class ExampleModel(BaseModel):
         return BytesIO(file_bytes)
 
     async def process_request(self, body):
-        request = models_pb2.ExampleModelRequest()
+        request = self.request_cls()
         request.ParseFromString(body)
-        response_obj = models_pb2.ExampleModelResponse()
+        response_obj = self.response_cls()
 
         file = self.get_file_from_base64(request.file)
 
@@ -46,12 +48,6 @@ class ExampleModel(BaseModel):
         response_obj.summary = summary
         response_obj.fixed_author = request.author + " (summarized by AI)"
         return response_obj
-
-    def get_request_format(self):
-        return models_pb2.ExampleModelRequest.DESCRIPTOR
-
-    def get_response_format(self):
-        return models_pb2.ExampleModelResponse.DESCRIPTOR
 
 
 if __name__ == "__main__":
