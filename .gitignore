@@ -3,4 +3,3 @@ __pycache__/
 *.pyc
 users.json
 models_registry.json
-*_pb2.py
