@@ -38,7 +38,7 @@ jobs:
     - name: Gen proto models
       run: | 
         python -m grpc_tools.protoc   -I proto   --python_out=.   --grpc_python_out=.   proto/models.proto
-        python -m grpc_tools.protoc   -I proto   --python_out=.   --grpc_python_out=.   tests/example.proto
+        python -m grpc_tools.protoc   -I tests   --python_out=.   --grpc_python_out=.   tests/example.proto
 
     - name: Run tests
       run: pytest tests
