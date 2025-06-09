@@ -3,6 +3,7 @@ import atexit
 import base64
 import json
 import socket
+import sys
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Type
 import redis.asyncio as aioredis
@@ -138,14 +139,21 @@ class BaseModel(ABC, Generic[RequestType, ResponseType]):
     def _register_with_registry(self):
         host = self.config["model_registry"]["host"]
         port = self.config["model_registry"]["port"]
-        try:
-            response = requests.post(
-                f"http://{host}:{port}/register",
-                params={"model_name": self.model_name, "host": self.host, "port": self.port}
-            )
-            logger.info(f"[*] Registered with registry: {response.json()}")
-        except requests.RequestException as e:
-            logger.error(f"[!] Failed to register: {e}")
+        request_descriptor = self.get_request_format()
+        response_descriptor = self.get_response_format()
+        for attempt in range(5):
+            try:
+                response = requests.post(
+                    f"http://{host}:{port}/register",
+                    params={"model_name": self.model_name, "host": self.host, "port": self.port,
+                            "input_model": request_descriptor.full_name, "output_model": response_descriptor.full_name}
+                )
+                logger.info(f"[*] Registered with registry: {response.json()}")
+                return
+            except requests.RequestException as e:
+                logger.error(f"[!] Failed to register: {e}, attempt {attempt + 1}.")
+        print("Could not connect to ModelRegistry after retries. Exiting.")
+        sys.exit(1)
 
     def _unregister_from_registry(self):
         host = self.config["model_registry"]["host"]

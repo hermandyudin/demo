@@ -48,12 +48,18 @@ def get_models():
 
 
 @app.post("/register")
-def register_model(model_name: str, host: str, port: int):
+def register_model(model_name: str, host: str, port: int, input_model: str, output_model: str):
     instance = {"host": host, "port": port, "last_ping": time.time()}
 
     if model_name not in models:
-        models[model_name] = {"instances": [instance]}
+        models[model_name] = {"instances": [instance], "input_model": input_model, "output_model": output_model}
     else:
+        if models[model_name]["input_model"] != input_model or models[model_name]["output_model"] != output_model:
+            raise ValueError(
+                f"Model '{model_name}' is already registered with a different input/output schema.\n"
+                f"Existing input_model: {models[model_name]['input_model']}, new: {input_model}\n"
+                f"Existing output hash: {models[model_name]['output_model']}, new: {output_model}"
+            )
         instances = models[model_name]["instances"]
         # Avoid duplicates
         if not any(inst["host"] == host and inst["port"] == port for inst in instances):
