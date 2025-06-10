@@ -1,7 +1,6 @@
 from interface import BaseModel
 from transformers import pipeline
 from models_pb2 import ExampleModelRequest, ExampleModelResponse
-import base64
 from io import BytesIO
 
 
@@ -14,7 +13,7 @@ class ExampleModel(BaseModel[ExampleModelRequest, ExampleModelResponse]):
 
         if not text.strip():
             print("The file is empty.")
-            return
+            return ""
 
         text = "summarize: " + text.strip().replace("\n", " ")
         # Load summarization pipeline with a light model
@@ -32,16 +31,12 @@ class ExampleModel(BaseModel[ExampleModelRequest, ExampleModelResponse]):
         final_summary = " ".join(summaries)
         return final_summary.strip()
 
-    def get_file_from_base64(self, file):
-        file_bytes = base64.b64decode(file.content)
-        return BytesIO(file_bytes)
-
     async def process_request(self, body):
         request = self.request_cls()
         request.ParseFromString(body)
         response_obj = self.response_cls()
 
-        file = self.get_file_from_base64(request.file)
+        file = BytesIO(request.file.content)
 
         summary = self.summarize_text_file(file)
 

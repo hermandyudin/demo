@@ -38,7 +38,7 @@ message ExampleModelResponse {
 }
 
 message File {
-   string content = 1;
+   bytes content = 1;
 }
 
 message Task {

@@ -236,9 +236,26 @@ def json_to_protobuf(descriptor, json_data):
 
 
 def protobuf_to_dict(proto_message):
+    from google.protobuf.descriptor import FieldDescriptor
     """Convert a Protobuf message to a dictionary."""
-    from google.protobuf.json_format import MessageToDict
-    return MessageToDict(proto_message, preserving_proto_field_name=True)
+
+    def convert_field(field, value):
+        if field.type == FieldDescriptor.TYPE_BYTES:
+            return base64.b64encode(value).decode('utf-8')
+        if field.label == FieldDescriptor.LABEL_REPEATED:
+            return [convert_field(field, v) for v in value]
+        return value
+
+    result = {}
+    for field, value in proto_message.ListFields():
+        if field.type == FieldDescriptor.TYPE_MESSAGE:
+            if field.label == FieldDescriptor.LABEL_REPEATED:
+                result[field.name] = [protobuf_to_dict(v) for v in value]
+            else:
+                result[field.name] = protobuf_to_dict(value)
+        else:
+            result[field.name] = convert_field(field, value)
+    return result
 
 
 def make_message_class(descriptor):
