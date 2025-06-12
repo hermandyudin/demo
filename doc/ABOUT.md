@@ -307,7 +307,7 @@ any
 of the components).
 
 Method for creating new task:
-[Method for creating new task](images/create_task_swagger.png)
+![Method for creating new task](images/create_task_swagger.png)
 
 Method for getting task result:
-[Method for getting task result](images/task_result_swagger.png)
+![Method for getting task result](images/task_result_swagger.png)
