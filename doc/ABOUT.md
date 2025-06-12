@@ -3,9 +3,24 @@
 ## Components
 
 ### Model Registry
-Model Registry - это специальный компонент, который несет ответственность за регистрацию моделей, поддержание их статуса 
-и исключение из системы в случае, если у модели не осталось живых инстансов. Когда модель поднимается, она автоматически 
-делает запрос на регистрацию 
+The Model Registry is a special component that is responsible for registering models, maintaining their status
+, and excluding them from the system if the model has no live instances left. When the model rises, it automatically
+makes a registration request (see the section about the model interface). ModelRegistry stores the model (or rather its instance)
+in its database. It stores information about the model name and its host port. Further in a circle (by a separate process) Model
+Registry crawls the list of model instances and sends a ping request. By default, this is done once every 10 seconds. Thanks
+to these pings, we can ensure that only live models are reflected in the system. If for some reason a model was disabled
+without a logout request from registry, we will respond anyway and stop showing it in the list of active models. This allows
+you to avoid making mistakes due to accessing a non-working model. It is worth adding that the model is excluded from the list only then., 
+when she doesn't have any live instances left. The Model Registry is also responsible for deduplication of models. That is, if
+we have a model named ModelA, and then we receive a request to register another model with the same name, but with different
+input-output classes (that is, it is a completely different model, but with the same name), the Model Registry returns an error and informs
+us that we cannot register the model with that name (since it is already occupied). The model also has its own interface.
+upon disconnection, it sends a request to disconnect from registry, so that it excludes the necessary instance and, if necessary, removes
+the model from the list of available ones.
+
+In general, this is a component that is a source of information about live models for the entire system. Also on this component 
+we count various metrics by model (number of live models, names of live models, queue in RabbitMQ for each
+of the models). The approximate interaction between Model instance and Model Registry is quite simple:
 ```mermaid 
 sequenceDiagram 
 participant ModelInstance 
