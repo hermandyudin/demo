@@ -12,8 +12,8 @@ participant ModelInstance
 participant ModelRegistry  
 ModelInstance->>ModelRegistry: Sends request to login in registry
 ModelRegistry->>ModelInstance: Pings a model to check if it's alive
-ModelInstance-->>ModelRegistry: Reacts on ping, in other case Model Registry removes it
-ModelInstance-->>ModelInstance: Sends request to logout before turning off
+ModelInstance->>ModelRegistry: Reacts on ping, in other case Model Registry removes it
+ModelInstance->>ModelRegistry: Sends request to logout before turning off
 ```
 
 ## How to add new model
