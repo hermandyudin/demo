@@ -112,10 +112,13 @@ This is a component that an external user interacts with. It also has a number o
    he can interact with the models.
 2) *Getting a list of models.* This is necessary so that the user can see which models are supported in the system.
    In the future, it is planned to add descriptions to the models for greater clarity.
-3) *Sending a task to the model.* Route `/models/{model_name}/tasks` allows you to send a task to a model named `model_name'.
-The API supports 2 data formats: json and proto. When json is received using a descriptor obtained from the model, the data from the json
-is converted to a proto message, put together with the generated id in a special wrapper class Task and sent to RabbitMQ
-in a topic named `model_name'. If the proto data format is selected, then it is simply added to the Task and the same
+3) *Sending a task to the model.* Route `/models/{model_name}/tasks` allows you to send a task to a model named
+   `model_name`.
+   The API supports 2 data formats: json and proto. When json is received using a descriptor obtained from the model,
+   the data from the json
+   is converted to a proto message, put together with the generated id in a special wrapper class Task and sent to
+   RabbitMQ
+   in a topic named `model_name`. If the proto data format is selected, then it is simply added to the Task and the same
    way.
    it is sent to RabbitMQ. The result of the `pending` is also placed in Redis, which is then replaced by the result of
    the task.
@@ -135,35 +138,176 @@ in a topic named `model_name'. If the proto data format is selected, then it is 
    with base64 format.
    ![Example of swagger](images/swagger.png)
 
+### Total architecture and communication
+
+```mermaid
+graph TD
+    Client -->|Interacts with API| API_Service
+    API_Service -->|Gets active models list and gets their i/o messages| Model_Registry
+    API_Service -->|Puts new tasks to particular queue| RabbitMQ[RabbitMQ]
+    API_Service -->|Gets result of the task from db| Redis[Redis]
+    Any_Model -->|Registers itself| Model_Registry
+    Model_Registry -->|Monitors if model is alive| Any_Model
+    Any_Model -->|Puts result of the task| Redis
+    Any_Model -->|Listens to queue and takes tasks| RabbitMQ
+
+    classDef model fill:#f9f,stroke:#333,stroke-width:1px;
+    class Any_Model model;
+```
+
+Each model is isolated and can be scaled or extended independently.
+
 ## How to add new model
 
 Actually, there are only several things to make new model work:
 
 1) Add input and output messages, that will represent i/o data for model to schema registry.
 2) Implement process_request method of interface. This is the main method, that accepts request and produces result.
-   Example:
 
 ```python
     async def process_request(self, body):
-
-
-    model_a_request = models_pb2.ModelARequest()
-model_a_request.ParseFromString(body)
-response_obj = models_pb2.ModelAResponse()
-response_obj.reply = f"Processed message: {model_a_request.messages}\n"
-return response_obj
 ```
 
-3) Implement get_request_format and get_response_format methods. They just return descriptors of messages:
+3) Deploy model. Interface will do the rest of the work. It will register the model in model_registry and connect to
+   RabbitMQ and Redis. It will start work!
+
+### Example
+
+Assuming we have such model, that takes a file and produces a brief description of text in file.
+Initial code of the model:
 
 ```python
-    def get_request_format(self):
-    return models_pb2.ModelARequest.DESCRIPTOR
+from transformers import pipeline
+import os
 
 
-def get_response_format(self):
-    return models_pb2.ModelAResponse.DESCRIPTOR
+def summarize_text_file(file_path):
+    # Check if file exists
+    if not os.path.exists(file_path):
+        print(f"File not found: {file_path}")
+        return
+
+    # Read the file
+    with open(file_path, 'r', encoding='utf-8') as file:
+        text = file.read()
+
+    if not text.strip():
+        print("The file is empty.")
+        return
+
+    text = "summarize: " + text.strip().replace("\n", " ")
+    # Load summarization pipeline with a light model
+    summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
+
+    # t5-small can handle up to ~512 tokens, limit to ~800 characters
+    max_chunk = 800
+    chunks = [text[i:i + max_chunk] for i in range(0, len(text), max_chunk)]
+
+    summaries = []
+    for chunk in chunks:
+        result = summarizer(chunk, max_length=100, min_length=30, do_sample=False)
+        summaries.append(result[0]['summary_text'])
+
+    final_summary = " ".join(summaries)
+    print("\n=== Summary ===\n")
+    print(final_summary.strip())
+
+
+# Example usage
+if __name__ == "__main__":
+    summarize_text_file("text_document.txt")
 ```
 
-4) Deploy model. Interface will do the rest of the work. It will register the model in model_registry and connect to
-   RabbitMQ and Redis. It will start work!
+So we see the logic. As an input it should take some file (and maybe extra info) and as output return brief summary. So
+we
+add 2 messages for i/o classes for this model:
+
+```proto
+message ExampleModelRequest {
+   File file = 1;
+   string author = 2;
+}
+
+message ExampleModelResponse {
+   string summary = 1;
+   string fixed_author = 2;
+}
+
+message File {
+   bytes content = 1;
+}
+```
+
+Next step is implementing the interface. As a result we get the following code:
+
+```python
+from interface import BaseModel
+from transformers import pipeline
+from models_pb2 import ExampleModelRequest, ExampleModelResponse
+from io import BytesIO
+
+
+class ExampleModel(BaseModel[ExampleModelRequest, ExampleModelResponse]):
+    request_cls = ExampleModelRequest
+    response_cls = ExampleModelResponse
+
+    def summarize_text_file(self, file):
+        text = file.read().decode("utf-8")
+
+        if not text.strip():
+            print("The file is empty.")
+            return ""
+
+        text = "summarize: " + text.strip().replace("\n", " ")
+        # Load summarization pipeline with a light model
+        summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
+
+        # t5-small can handle up to ~512 tokens, limit to ~800 characters
+        max_chunk = 800
+        chunks = [text[i:i + max_chunk] for i in range(0, len(text), max_chunk)]
+
+        summaries = []
+        for chunk in chunks:
+            result = summarizer(chunk, max_length=100, min_length=30, do_sample=False)
+            summaries.append(result[0]['summary_text'])
+
+        final_summary = " ".join(summaries)
+        return final_summary.strip()
+
+    async def process_request(self, body):
+        request = self.request_cls()
+        request.ParseFromString(body)
+        response_obj = self.response_cls()
+
+        file = BytesIO(request.file.content)
+
+        summary = self.summarize_text_file(file)
+
+        response_obj.summary = summary
+        response_obj.fixed_author = request.author + " (summarized by AI)"
+        return response_obj
+
+
+if __name__ == "__main__":
+    model = ExampleModel("ExampleModel", 8003)
+    model.run()
+```
+
+We just move most of the logic to interface and implement 1 method.
+
+```python
+    request_cls = ExampleModelRequest
+response_cls = ExampleModelResponse
+```
+
+This lines are needed to pass the i/o classes to interface (it will be used for logic described above).
+
+Then after deploying the model we can see the following 2 new methods in swagger (they will appear without restarting
+any
+of the components).
+
+Method for creating new task:
+[Method for creating new task](images/create_task_swagger.png)
+
+Method for getting task result:
+[Method for getting task result](images/task_result_swagger.png)
