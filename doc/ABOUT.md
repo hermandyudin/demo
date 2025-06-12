@@ -16,7 +16,7 @@ we have a model named ModelA, and then we receive a request to register another 
 input-output classes (that is, it is a completely different model, but with the same name), the Model Registry returns an error and informs
 us that we cannot register the model with that name (since it is already occupied). The model also has its own interface.
 upon disconnection, it sends a request to disconnect from registry, so that it excludes the necessary instance and, if necessary, removes
-the model from the list of available ones.
+the model from the list of available ones. Also, Model Registry has a route for returning a list of active models.
 
 In general, this is a component that is a source of information about live models for the entire system. Also on this component 
 we count various metrics by model (number of live models, names of live models, queue in RabbitMQ for each
@@ -42,6 +42,32 @@ total number of models.
 For example, you can add instances to lagging or just slow models.
 
 ![Models Dashboard](images/dashboard.png)
+
+### Interface
+The interface that the model should implement (the model should support only 1 method for operation). The rest of the functionality
+is taken over by the interface:
+1) *Registration in the Model Registry and a logging out request from the Model Registry.* When the model that implements the interface
+is launched, a request is made to the Model Registry (the address of the model registry is in the general config). Also, when switching off, it is sent before disconnecting. 
+request for deletion from the Model Registry. It occurs without delay, because even if the request fails,
+the instance itself disappears from the registry due to pings.
+2) *Connect to RabbitMQ, from where new tasks for models are obtained.* The model connects to the queue with its own name (each instance
+of the model does this). This happens with retreats. If the model cannot be connected to the task queue, it is disabled (since
+it will not do anything). Accordingly, a request is taken from the queue (all tasks are wrapped in a special Task class),
+an id is taken from the task, and the request body is sent to the request to receive a response (this method implements the model). Then
+the result of the function is stored in the database. The load is also distributed evenly between different instances of the model: each model
+takes on a new task for processing as it becomes available. RabbitMQ guarantees that each message will be delivered exactly once.
+3) *Connect to Redis.* Redis was chosen as the database. It is well suited for such data: we need to store the results
+of completed tasks by id. Accordingly, the interface independently connects the model to Redis. Then, after completing the task
+, the interface independently puts it into the database by id, which it took out of a special Task wrapper.
+4) *Handling pings.* Interface starts a back process for reacting on pings. They are used by Model Registry in this architecture
+but can be used to check it manually.
+5) *Special routes for returning input/output message descriptors.* Interface has an info about input/output classes used 
+by model. They are used by the Gateway for building the Swagger.
+
+So by adding input/output messages to proto registry and implementing 1 method that takes input class, does the model logic
+and returns output class we are making new component that works in this system. All other integrations are done by interface. 
+It is a big plus because developers should not change anything in full system. Example of integrating new model will be 
+further.
 
 
 ## How to add new model
