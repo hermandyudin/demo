@@ -138,6 +138,16 @@ This is a component that an external user interacts with. It also has a number o
    with base64 format.
    ![Example of swagger](images/swagger.png)
 
+### Extra info
+
+1) All schema is in `/proto` directory. When someone changes the schema in pull request proto schema is checked on
+   backward
+   compatibility. It allows to avoid problems of broking i/o class of model while adding the another one
+2) Tests are in `/tests`. They are also running on every pull request to avoid breaking the logic.
+3) There are some extra directories. `/load_testing` directory contains files with code for load testing. It uses
+   Locust.
+   Another one - `/serialization_type_test` directory. It contains a code for comparing json and proto.
+
 ### Total architecture and communication
 
 ```mermaid
