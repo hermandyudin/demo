@@ -296,7 +296,7 @@ if __name__ == "__main__":
 We just move most of the logic to interface and implement 1 method.
 
 ```python
-    request_cls = ExampleModelRequest
+request_cls = ExampleModelRequest
 response_cls = ExampleModelResponse
 ```
 
