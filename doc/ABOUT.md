@@ -31,6 +31,19 @@ ModelInstance->>ModelRegistry: Reacts on ping, in other case Model Registry remo
 ModelInstance->>ModelRegistry: Sends request to logout before turning off
 ```
 
+### Metrics
+Not going far from the Model Registry, which collects information about models and delivers these metrics to Prometheus. On port 3000
+you can see the finished dashboard. It currently consists of the 3 most important charts for tracking. This: 
+- The number of active models. It is the number of models that counts here, not their instances. It may be worth
+adding a graph with the number of live instances for each of the models later.
+- The names of the models. This is a graph for convenience, to understand which models are included, if the number of live models !=
+total number of models.
+- Queue for processing in each of the models. This is the most important schedule. It allows you to track and respond to the processing backlog.
+For example, you can add instances to lagging or just slow models.
+
+![Models Dashboard](images/dashboard.png)
+
+
 ## How to add new model
 Actually, there are only several things to make new model work:
 
