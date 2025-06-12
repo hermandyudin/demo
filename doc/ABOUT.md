@@ -1,5 +1,22 @@
 # About system
 
+## Components
+
+### Model Registry
+Model Registry - это специальный компонент, который несет ответственность за регистрацию моделей, поддержание их статуса 
+и исключение из системы в случае, если у модели не осталось живых инстансов. Когда модель поднимается, она автоматически 
+делает запрос на регистрацию 
+```mermaid 
+sequenceDiagram 
+participant User 
+participant App 
+participant Database 
+User->>App: Sends login request
+App->>Database: Query user credentials 
+Database-->>App: Return user data 
+App-->>User: Show dashboard
+```
+
 ## How to add new model
 Actually, there are only several things to make new model work:
 
